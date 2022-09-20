@@ -4,6 +4,7 @@
 import cv2
 import numpy as np
 
+
 # 定義調整亮度對比的函式
 def adjust(i, c, b):
     output = i * (c / 100 + 1) - c + b  # 轉換公式
