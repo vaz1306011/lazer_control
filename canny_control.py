@@ -8,16 +8,17 @@ def nothing(x):
     pass
 
 
-if __name__ == "__main__":
-    cv2.namedWindow("res")
+if __name__ == '__main__':
+    cv2.namedWindow('res')
 
-    cv2.createTrackbar("max", "res", 0, 255, nothing)
-    cv2.createTrackbar("min", "res", 0, 255, nothing)
+    cv2.createTrackbar('max', 'res', 0, 255, nothing)
+    cv2.createTrackbar('min', 'res', 0, 255, nothing)
 
     maxVal = 200
     minVal = 100
 
-    cap = cv2.VideoCapture("./video/pos2.MOV")
+    # cap = cv2.VideoCapture('./video/pos2.MOV')
+    cap = cv2.VideoCapture(0)
     is_pause = False
 
     while True:
@@ -32,17 +33,17 @@ if __name__ == "__main__":
         key = cv2.waitKey(10)
         if key == 27:
             break
-        elif key == ord("p"):
+        elif key == ord('p'):
             is_pause = not is_pause
 
-        maxVal = cv2.getTrackbarPos("min", "res")
-        minVal = cv2.getTrackbarPos("max", "res")
+        maxVal = cv2.getTrackbarPos('min', 'res')
+        minVal = cv2.getTrackbarPos('max', 'res')
         if minVal < maxVal:
             edge = cv2.Canny(blur, 100, 200)
-            cv2.imshow("res", edge)
+            cv2.imshow('res', edge)
         else:
             edge = cv2.Canny(blur, minVal, maxVal)
-            cv2.imshow("res", edge)
+            cv2.imshow('res', edge)
 
     print(minVal, maxVal)
     cv2.destroyAllWindows()
