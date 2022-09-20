@@ -13,7 +13,7 @@ if __name__ == "__main__":
     BLUE = [255, 0, 0]
 
     cap = cv2.VideoCapture(0)
-    cap = cv2.VideoCapture("./video/pos2.MOV")
+    # cap = cv2.VideoCapture('./video/pos2.MOV')
 
     upper = np.array([180, 255, 255])
     lower = np.array([130, 50, 50])
@@ -24,13 +24,20 @@ if __name__ == "__main__":
         if not rval:
             break
 
+        contrast = 0
+        brightness = -150
+
+        test = img * (contrast / 127 + 1) - contrast + brightness
+        test = np.clip(test, 0, 255)
+        test = np.uint8(test)
+
         # 轉成灰階
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
         # 高斯模糊
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        canny = cv2.Canny(blur, 150, 200)
+        canny = cv2.Canny(blur, 20, 80)
 
         color_mask = cv2.inRange(hsv, lower, upper)  # 只抓雷射筆顏色
         mask = cv2.bitwise_and(canny, canny, mask=color_mask)  # 跟canny做AND
@@ -51,13 +58,14 @@ if __name__ == "__main__":
             # ('color_mask', color_mask),
             # ('mask_img', mask_img),
             # ('mask', mask)
+            ("test", test),
         )
 
         for name, img in show_list:
             cv2.imshow(name, img)
             cv2.namedWindow(name, cv2.WINDOW_NORMAL)
 
-        key = cv2.waitKey(0)
+        key = cv2.waitKey(1)
         if key == 27:
             break
         elif key == ord("p"):
