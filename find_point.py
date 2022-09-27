@@ -16,7 +16,7 @@ if __name__ == "__main__":
     # cap = cv2.VideoCapture('./video/pos2.MOV')
 
     upper = np.array([180, 255, 255])
-    lower = np.array([130, 50, 50])
+    lower = np.array([130, 50, 200])
 
     while True:
         # Read the frame
@@ -37,10 +37,10 @@ if __name__ == "__main__":
 
         # 高斯模糊
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        canny = cv2.Canny(blur, 20, 80)
+        # canny = cv2.Canny(blur, 20, 80)
 
         color_mask = cv2.inRange(hsv, lower, upper)  # 只抓雷射筆顏色
-        mask = cv2.bitwise_and(canny, canny, mask=color_mask)  # 跟canny做AND
+        mask = cv2.bitwise_and(blur, blur, mask=color_mask)  # 跟canny做AND
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
