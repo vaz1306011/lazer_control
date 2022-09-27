@@ -58,7 +58,7 @@ if __name__ == "__main__":
             # ('color_mask', color_mask),
             # ('mask_img', mask_img),
             # ('mask', mask)
-            ("test", test),
+            # ("test", test),
         )
 
         for name, img in show_list:
