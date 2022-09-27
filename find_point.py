@@ -13,7 +13,7 @@ if __name__ == "__main__":
     BLUE = [255, 0, 0]
 
     cap = cv2.VideoCapture(0)
-    # cap = cv2.VideoCapture('./video/pos2.MOV')
+    # cap = cv2.VideoCapture("./video/pos2.MOV")
 
     upper = np.array([180, 255, 255])
     lower = np.array([130, 50, 200])
