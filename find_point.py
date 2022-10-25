@@ -112,6 +112,12 @@ if __name__ == "__main__":
         color_mask = cv2.inRange(hsv, lower, upper)
         mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
+        # 投影幕範圍過濾
+        four_points_mask = np.zeros(img.shape, dtype="uint8")
+        cv2.fillPoly(four_points_mask, [np.array(four_points)], WHITE)
+        four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
+        mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
+
 
         # 繪製雷射筆邊框
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
