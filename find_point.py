@@ -103,21 +103,15 @@ if __name__ == "__main__":
         # 灰階
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        # HSV
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-        # 高斯模糊
-        # blur = cv2.GaussianBlur(gray, (5, 5), 0)
-
-        # 邊框
-        # canny = cv2.Canny(blur, 20, 80)
         # 二質化過濾
         _, binary_mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
         mask = cv2.bitwise_and(mask, mask, mask=binary_mask)  # 跟binary_mask做AND
 
         # HSV過濾
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         color_mask = cv2.inRange(hsv, lower, upper)
-        mask = cv2.bitwise_and(gray, gray, mask=color_mask)  # 跟color_mask做AND
+        mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
+
 
         # 繪製雷射筆邊框
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
