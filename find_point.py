@@ -111,6 +111,9 @@ if __name__ == "__main__":
 
         # 邊框
         # canny = cv2.Canny(blur, 20, 80)
+        # 二質化過濾
+        _, binary_mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
+        mask = cv2.bitwise_and(mask, mask, mask=binary_mask)  # 跟binary_mask做AND
 
         # HSV過濾
         color_mask = cv2.inRange(hsv, lower, upper)
