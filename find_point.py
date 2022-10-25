@@ -1,7 +1,6 @@
 """
 用顏色和 canny 尋找目標
 """
-from imutils.perspective import four_point_transform
 import cv2
 import numpy as np
 
@@ -69,12 +68,13 @@ if __name__ == "__main__":
 
     # upper = np.array([180, 255, 255])
     # lower = np.array([130, 50, 200])
-    upper = np.array([90, 255, 255])
-    lower = np.array([30, 37, 200])
+    upper = np.array([85, 255, 255])
+    lower = np.array([35, 37, 200])
 
     cv2.namedWindow("set Projection Screen")
     cv2.setMouseCallback("set Projection Screen", mouse_click)
 
+    # 抓取頂點
     while True:
         _, img = cap.read()
 
@@ -96,12 +96,16 @@ if __name__ == "__main__":
         elif key == 27:
             exit()
 
+    cv2.destroyAllWindows()
+
+    # 抓雷射筆
     while True:
         # Read the frame
         _, img = cap.read()
 
         # 灰階
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        mask = gray
 
         # 二質化過濾
         _, binary_mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
@@ -137,10 +141,11 @@ if __name__ == "__main__":
         # 顯示成果
         show_list = (
             ("img", img),
+            # ("binary", binary_mask),
+            # ("mask", mask),
             # ('canny', canny),
             # ('color_mask', color_mask),
             # ("mask_img", mask_img),
-            # ("mask", mask)
             # ("test", test),
         )
 
