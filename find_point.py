@@ -122,8 +122,12 @@ if __name__ == "__main__":
         mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
         # 繪製雷射筆邊框
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for cnt in contours:
+        contours, test = cv2.findContours(
+            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        if contours:
+            cnt = max(contours, key=lambda img: cv2.contourArea(img))
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
             point = Point(x + w / 2, y + h / 2)
