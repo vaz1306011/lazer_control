@@ -118,6 +118,8 @@ if __name__ == "__main__":
         four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
         mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
 
+        # 高斯模糊
+        mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
         # 繪製雷射筆邊框
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
