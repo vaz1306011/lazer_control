@@ -84,12 +84,12 @@ def main():
     # cap = cv2.VideoCapture("./video/pos1.MOV")
 
     # 紅色雷射筆
-    # upper = np.array([180, 255, 255])
-    # lower = np.array([130, 50, 200])
+    # red_upper = np.array([180, 255, 255])
+    # red_lower = np.array([130, 50, 200])
 
     # 綠色雷射筆
-    upper = np.array([85, 255, 255])
-    lower = np.array([35, 37, 200])
+    green_upper = np.array([85, 255, 255])
+    green_lower = np.array([35, 37, 200])
 
     cv2.namedWindow("set Projection Screen")
     cv2.setMouseCallback("set Projection Screen", mouse_click)
@@ -116,6 +116,7 @@ def main():
         elif key == 27:
             return
 
+    four_points = sort_points(four_points)
     cv2.destroyAllWindows()
 
     # 抓雷射筆
@@ -133,7 +134,7 @@ def main():
 
         # HSV過濾
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        color_mask = cv2.inRange(hsv, lower, upper)
+        color_mask = cv2.inRange(hsv, green_lower, green_upper)
         mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
         # 投影幕範圍過濾
