@@ -4,32 +4,56 @@
 import cv2
 import numpy as np
 
-
-class Point:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-
+BLACK = [0, 0, 0]
+WHITE = [255, 255, 255]
+RED = [0, 0, 255]
+GREEN = [0, 255, 0]
+BLUE = [255, 0, 0]
 
 four_points = []
 img = None
 
 
+def sort_points(four_points: list):
+
+    points = four_points.copy()
+    temp = []
+
+    lt = min(points, key=lambda x: x[0] + x[1])
+    temp.append(lt)
+    points.remove(lt)
+
+    rt = max(points, key=lambda x: x[0] - x[1])
+    temp.append(rt)
+    points.remove(rt)
+
+    lb = min(points, key=lambda x: x[0] - x[1])
+    temp.append(lb)
+    points.remove(lb)
+
+    rb = points[0]
+    temp.append(rb)
+    points.remove(rb)
+
+    return tuple(temp)
+
+
 def mouse_click(event, x, y, flags, para):
-    global four_points, img
+    if len(four_points) >= 4:
+        return
+
     if event == cv2.EVENT_LBUTTONDOWN:
         four_points.append([x, y])
-        # print(four_points)
 
 
 def point_convert(
-    point: Point, lt: Point, rt: Point, lb: Point, rb: Point, width=1920, height=1080
-) -> Point:
+    point: tuple, four_point: tuple, width: int = 1920, height: int = 1080
+) -> tuple[int, int]:
     x, y = point.x, point.y
-    x0, y0 = lt.x, lt.y
-    x1, y1 = rt.x, rt.y
-    x2, y2 = lb.x, lb.y
-    x3, y3 = rb.x, rb.y
+    x0, y0 = four_point[0]
+    x1, y1 = four_point[1]
+    x2, y2 = four_point[2]
+    x3, y3 = four_point[3]
 
     dx1 = x1 - x2
     dx2 = x3 - x2
@@ -52,22 +76,18 @@ def point_convert(
     # u = x1 - x0 + g * x1
     # v = y1 - y0 + g * y1
 
-    return Point(width * u, height * v)
+    return (width * u, height * v)
 
 
-if __name__ == "__main__":
-
-    BLACK = [0, 0, 0]
-    WHITE = [255, 255, 255]
-    RED = [0, 0, 255]
-    GREEN = [0, 255, 0]
-    BLUE = [255, 0, 0]
-
+def main():
     cap = cv2.VideoCapture(0)
     # cap = cv2.VideoCapture("./video/pos1.MOV")
 
+    # 紅色雷射筆
     # upper = np.array([180, 255, 255])
     # lower = np.array([130, 50, 200])
+
+    # 綠色雷射筆
     upper = np.array([85, 255, 255])
     lower = np.array([35, 37, 200])
 
@@ -94,7 +114,7 @@ if __name__ == "__main__":
             break
 
         elif key == 27:
-            exit()
+            return
 
     cv2.destroyAllWindows()
 
@@ -126,15 +146,13 @@ if __name__ == "__main__":
         mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
         # 繪製雷射筆邊框
-        contours, test = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if contours:
             cnt = max(contours, key=lambda img: cv2.contourArea(img))
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
-            point = Point(x + w / 2, y + h / 2)
+            point = (x + w / 2, y + h / 2)
 
         # mask_img = cv2.bitwise_and(img, img, mask=color_mask)
 
@@ -162,6 +180,9 @@ if __name__ == "__main__":
             break
 
     cap.release()
-    cv2.destroyAllWindows()
 
+
+if __name__ == "__main__":
+    main()
+    cv2.destroyAllWindows()
     print("done")
