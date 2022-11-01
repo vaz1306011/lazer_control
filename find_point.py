@@ -11,7 +11,6 @@ GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
 four_points = []
-img = None
 
 
 def sort_points(four_points: list):
@@ -80,6 +79,7 @@ def point_convert(
 
 
 def main():
+    global four_points
     cap = cv2.VideoCapture(0)
     # cap = cv2.VideoCapture("./video/pos1.MOV")
 
@@ -138,13 +138,16 @@ def main():
         mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
         # 投影幕範圍過濾
+        filter_area = np.array(four_points[:2] + four_points[:1:-1])
         four_points_mask = np.zeros(img.shape, dtype="uint8")
-        cv2.fillPoly(four_points_mask, [np.array(four_points)], WHITE)
+        cv2.fillPoly(four_points_mask, [filter_area], WHITE)
         four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
         mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
 
         # 高斯模糊
-        mask = cv2.GaussianBlur(mask, (15, 15), 0)
+        mask = cv2.GaussianBlur(mask, (13, 13), 0)
+
+        cv2.polylines(img, [filter_area], True, RED)
 
         # 繪製雷射筆邊框
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -160,8 +163,9 @@ def main():
         # 顯示成果
         show_list = (
             ("img", img),
+            ("four_points_mask", four_points_mask),
             # ("binary", binary_mask),
-            # ("mask", mask),
+            ("mask", mask),
             # ('canny', canny),
             # ('color_mask', color_mask),
             # ("mask_img", mask_img),
