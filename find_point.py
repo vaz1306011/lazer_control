@@ -46,9 +46,12 @@ def mouse_click(event, x, y, flags, para):
 
 
 def point_convert(
-    point: tuple, four_point: tuple, width: int = 1920, height: int = 1080
+    point: tuple[int, int],
+    four_point: list[list[int]],
+    width: int = 1920,
+    height: int = 1080,
 ) -> tuple[int, int]:
-    x, y = point.x, point.y
+    x, y = point[0], point[1]
     x0, y0 = four_point[0]
     x1, y1 = four_point[1]
     x2, y2 = four_point[2]
@@ -72,10 +75,8 @@ def point_convert(
     temp = (d * h - e * g) * x + (b * g - a * h) * y + a * e - b * d
     u = ((e - f * h) * x + (c * h - b) * y + b * f - c * e) / temp
     v = ((f * g - d) * x + (a - c * g) * y - c * d - a * f) / temp
-    # u = x1 - x0 + g * x1
-    # v = y1 - y0 + g * y1
 
-    return (width * u, height * v)
+    return (int(width * u), int(height * v))
 
 
 def main():
@@ -163,9 +164,9 @@ def main():
         # 顯示成果
         show_list = (
             ("img", img),
-            ("four_points_mask", four_points_mask),
+            # ("four_points_mask", four_points_mask),
             # ("binary", binary_mask),
-            ("mask", mask),
+            # ("mask", mask),
             # ('canny', canny),
             # ('color_mask', color_mask),
             # ("mask_img", mask_img),
