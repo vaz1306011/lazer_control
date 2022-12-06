@@ -149,6 +149,7 @@ def main():
         # 高斯模糊
         mask = cv2.GaussianBlur(mask, (13, 13), 0)
 
+        # 畫投影幕邊框
         cv2.polylines(img, [filter_area], True, RED)
 
         # 繪製雷射筆邊框
