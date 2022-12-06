@@ -3,6 +3,7 @@
 """
 import cv2
 import numpy as np
+import win32api
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -54,8 +55,8 @@ def point_convert(
     x, y = point[0], point[1]
     x0, y0 = four_point[0]
     x1, y1 = four_point[1]
-    x2, y2 = four_point[2]
-    x3, y3 = four_point[3]
+    x2, y2 = four_point[3]
+    x3, y3 = four_point[2]
 
     dx1 = x1 - x2
     dx2 = x3 - x2
@@ -158,6 +159,9 @@ def main():
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
             point = (x + w / 2, y + h / 2)
+            mouse_pos = point_convert(point, four_points)
+            print(mouse_pos)
+            win32api.SetCursorPos(mouse_pos)
 
         # mask_img = cv2.bitwise_and(img, img, mask=color_mask)
 
