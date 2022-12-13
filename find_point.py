@@ -51,6 +51,7 @@ def point_convert(
     four_point: list[list[int]],
     width: int = 1920,
     height: int = 1080,
+    zoom: float = 1,
 ) -> tuple[int, int]:
     x, y = point[0], point[1]
     x0, y0 = four_point[0]
@@ -64,26 +65,30 @@ def point_convert(
     dy2 = y3 - y2
     sx = x0 - x1 + x2 - x3
     sy = y0 - y1 + y2 - y3
-    g = (sx * dy2 + dx2 * sy) / (dx1 * dy2 + dx2 * dy1)
-    h = (dx1 * sy + sx * dy1) / (dx1 * dy2 + dx2 * dy1)
-    a = x1 - x0 + g * x1
-    b = x3 - x0 + h * x3
+    g = (sx * dy2 - sy * dx2) / (dx1 * dy2 - dy1 * dx2)
+    h = (dx1 * sy - dy1 * sx) / (dx1 * dy2 - dy1 * dx2)
+    a = x1 - x0 + (g * x1)
+    b = x3 - x0 + (h * x3)
     c = x0
-    d = y1 - y0 + g * y1
-    e = y3 - y0 + h * y3
+    d = y1 - y0 + (g * y1)
+    e = y3 - y0 + (h * y3)
     f = y0
 
     temp = (d * h - e * g) * x + (b * g - a * h) * y + a * e - b * d
     u = ((e - f * h) * x + (c * h - b) * y + b * f - c * e) / temp
-    v = ((f * g - d) * x + (a - c * g) * y - c * d - a * f) / temp
+    v = ((f * g - d) * x + (a - c * g) * y + c * d - a * f) / temp
 
-    return (int(width * u), int(height * v))
+    u = max(0, min(u, 1))
+    v = max(0, min(v, 1))
+
+    return (int((width * u) / zoom), int((height * v) / zoom))
 
 
 def main():
     global four_points
     cap = cv2.VideoCapture(0)
     # cap = cv2.VideoCapture("./video/pos1.MOV")
+    zoom = 1.5  # 螢幕縮放倍率
 
     # 紅色雷射筆
     # red_upper = np.array([180, 255, 255])
@@ -141,10 +146,10 @@ def main():
 
         # 投影幕範圍過濾
         filter_area = np.array(four_points[:2] + four_points[:1:-1])
-        four_points_mask = np.zeros(img.shape, dtype="uint8")
-        cv2.fillPoly(four_points_mask, [filter_area], WHITE)
-        four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
-        mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
+        # four_points_mask = np.zeros(img.shape, dtype="uint8")
+        # cv2.fillPoly(four_points_mask, [filter_area], WHITE)
+        # four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
+        # mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
 
         # 高斯模糊
         mask = cv2.GaussianBlur(mask, (13, 13), 0)
@@ -160,7 +165,7 @@ def main():
             x, y, w, h = cv2.boundingRect(cnt)
             cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
             point = (x + w / 2, y + h / 2)
-            mouse_pos = point_convert(point, four_points)
+            mouse_pos = point_convert(point, four_points, zoom=zoom)
             print(mouse_pos)
             win32api.SetCursorPos(mouse_pos)
 
