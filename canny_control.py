@@ -4,21 +4,18 @@ canny 數值可視畫調整
 import cv2
 
 
-def nothing(x):
-    pass
-
-
-if __name__ == "__main__":
+def main():
     cv2.namedWindow("res")
 
-    cv2.createTrackbar("max", "res", 0, 255, nothing)
+    nothing = lambda _: _
+    cv2.createTrackbar("max", "res", 255, 255, nothing)
     cv2.createTrackbar("min", "res", 0, 255, nothing)
 
-    maxVal = 200
-    minVal = 100
+    maxVal = 255
+    minVal = 0
 
-    # cap = cv2.VideoCapture('./video/pos2.MOV')
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("./video/pos2.MOV")
+    # cap = cv2.VideoCapture(0)
     is_pause = False
 
     while True:
@@ -47,3 +44,7 @@ if __name__ == "__main__":
 
     print(minVal, maxVal)
     cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
