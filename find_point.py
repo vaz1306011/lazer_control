@@ -4,6 +4,7 @@
 import cv2
 import numpy as np
 import win32api
+import win32con
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -126,6 +127,7 @@ def main():
     four_points = sort_points(four_points)
     cv2.destroyAllWindows()
 
+    has_pre_pos = False
     # 抓雷射筆
     while True:
         # Read the frame
@@ -166,8 +168,18 @@ def main():
             cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
             point = (x + w / 2, y + h / 2)
             mouse_pos = point_convert(point, four_points, zoom=zoom)
-            print(mouse_pos)
+            # print(mouse_pos)
             win32api.SetCursorPos(mouse_pos)
+
+            has_pre_pos = True
+
+        else:
+            if has_pre_pos:
+                win32api.mouse_event(
+                    win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP, 0, 0
+                )
+
+            has_pre_pos = False
 
         # mask_img = cv2.bitwise_and(img, img, mask=color_mask)
 
