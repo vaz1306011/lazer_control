@@ -1,10 +1,16 @@
 """
-用顏色和 canny 尋找目標
+用顏色和亮度尋找雷射筆
 """
+import sys
+
+# pyuic5 -x .\button.ui -o button.py
 import cv2
 import numpy as np
 import win32api
 import win32con
+from PyQt5 import QtCore, QtGui, QtWidgets
+
+import button as ui
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -13,6 +19,12 @@ GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
 four_points = []
+
+
+class Main(QtWidgets.QMainWindow, ui.Ui_Dialog):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
 
 
 def sort_points(four_points: list):
@@ -89,7 +101,7 @@ def main():
     global four_points
     cap = cv2.VideoCapture(0)
     # cap = cv2.VideoCapture("./video/pos1.MOV")
-    zoom = 1.5  # 螢幕縮放倍率
+    zoom = 1  # 螢幕縮放倍率
 
     # 紅色雷射筆
     # red_upper = np.array([180, 255, 255])
@@ -255,6 +267,11 @@ def setting_window():
 
 
 if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+    window = Main()
+    window.show()
+
+    # sys.exit(app.exec_())
     main()
     cv2.destroyAllWindows()
     print("done")
