@@ -16,6 +16,8 @@ class Ui_Dialog(object):
         Dialog.setObjectName("Dialog")
         Dialog.setGeometry(550, 0, 810, 80)
         Dialog.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+
+        # 單擊
         self.click = QtWidgets.QPushButton(Dialog)
         self.click.setGeometry(QtCore.QRect(5, 5, 260, 70))
         font = QtGui.QFont()
@@ -25,24 +27,28 @@ class Ui_Dialog(object):
         font.setWeight(75)
         self.click.setFont(font)
         self.click.setObjectName("click")
-        self.doubleclick = QtWidgets.QPushButton(Dialog)
-        self.doubleclick.setGeometry(QtCore.QRect(275, 5, 260, 70))
+
+        # 雙擊
+        self.doubleClick = QtWidgets.QPushButton(Dialog)
+        self.doubleClick.setGeometry(QtCore.QRect(275, 5, 260, 70))
         font = QtGui.QFont()
         font.setFamily("Bahnschrift SemiBold SemiConden")
         font.setPointSize(26)
         font.setBold(True)
         font.setWeight(75)
-        self.doubleclick.setFont(font)
-        self.doubleclick.setObjectName("doubleclick")
-        self.move = QtWidgets.QPushButton(Dialog)
-        self.move.setGeometry(QtCore.QRect(545, 5, 260, 70))
+        self.doubleClick.setFont(font)
+        self.doubleClick.setObjectName("doubleclick")
+
+        # 拖移
+        self.drag = QtWidgets.QPushButton(Dialog)
+        self.drag.setGeometry(QtCore.QRect(545, 5, 260, 70))
         font = QtGui.QFont()
         font.setFamily("Bahnschrift SemiBold SemiConden")
         font.setPointSize(28)
         font.setBold(True)
         font.setWeight(75)
-        self.move.setFont(font)
-        self.move.setObjectName("move")
+        self.drag.setFont(font)
+        self.drag.setObjectName("drag")
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
@@ -51,8 +57,8 @@ class Ui_Dialog(object):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
         self.click.setText(_translate("Dialog", "click"))
-        self.doubleclick.setText(_translate("Dialog", "double click"))
-        self.move.setText(_translate("Dialog", "move"))
+        self.doubleClick.setText(_translate("Dialog", "double click"))
+        self.drag.setText(_translate("Dialog", "move"))
 
 
 if __name__ == "__main__":

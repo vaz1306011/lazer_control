@@ -2,6 +2,8 @@
 用顏色和亮度尋找雷射筆
 """
 import sys
+from enum import Enum
+from functools import partial
 
 # pyuic5 -x .\button.ui -o button.py
 import cv2
@@ -19,6 +21,18 @@ GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
 
+class ButtonUI(QtWidgets.QMainWindow, button_ui.Ui_Dialog):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+
+
+class Mode(Enum):
+    click = "click"
+    doubleClick = "doubleClick"
+    drag = "drag"
+
+
 class LazerController:
     # 紅色雷射筆
     red_upper = np.array([180, 255, 255])
@@ -29,10 +43,26 @@ class LazerController:
     green_lower = np.array([35, 37, 200])
 
     def __init__(self, zoom=1) -> None:
-        self.zoom = zoom
-        self.four_points = []
+        self.__zoom = zoom
+        self.__four_points = []
+        self.mode: Mode = Mode.click
 
-    def sort_points(self, four_points: list):
+    def __mouse_click(self, event, x, y, flags, para):
+        if len(self.__four_points) >= 4:
+            return
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.__four_points.append([x, y])
+
+    def _sort_points(self, four_points: list[list[int, int]]):
+        """排序四點(按照左上 右上 右下 左下)
+
+        Args:
+            four_points (list[list[int, int]]): 四點座標
+
+        Returns:
+            _type_: 排序後的點座標
+        """
 
         points = four_points.copy()
         temp = []
@@ -55,20 +85,24 @@ class LazerController:
 
         return tuple(temp)
 
-    def mouse_click(self, event, x, y, flags, para):
-        if len(self.four_points) >= 4:
-            return
-
-        if event == cv2.EVENT_LBUTTONDOWN:
-            self.four_points.append([x, y])
-
-    def point_convert(
+    def _point_convert(
         self,
         point: tuple[int, int],
-        four_point: list[list[int]],
+        four_point: list[list[int, int]],
         width: int = 1920,
         height: int = 1080,
     ) -> tuple[int, int]:
+        """座標正規畫
+
+        Args:
+            point (tuple[int, int]): 相對於整個畫面的點座標
+            four_point (list[list[int, int]]): 四角點座標
+            width (int, optional): 轉換後寬度. Defaults to 1920.
+            height (int, optional): 轉換後高度. Defaults to 1080.
+
+        Returns:
+            tuple[int, int]: 正規畫後座標
+        """
         x, y = point[0], point[1]
         x0, y0 = four_point[0]
         x1, y1 = four_point[1]
@@ -97,18 +131,27 @@ class LazerController:
         u = max(0, min(u, 1))
         v = max(0, min(v, 1))
 
-        return (int((width * u) / self.zoom), int((height * v) / self.zoom))
+        return (int((width * u) / self.__zoom), int((height * v) / self.__zoom))
 
-    def get_Pscreen(self, cap):
+    def _set_mode(self, event, mode: Mode):
+        self.mode = mode
+        print("set mode", mode)
+
+    def _get_Pscreen(self, cap):
+        """開啟投影幕範圍選擇視窗
+
+        Args:
+            cap (_type_): 攝影機
+        """
         cv2.namedWindow("set Projection Screen")
-        cv2.setMouseCallback("set Projection Screen", self.mouse_click)
+        cv2.setMouseCallback("set Projection Screen", self.__mouse_click)
 
         # 抓取頂點
         while True:
             _, img = cap.read()
 
             # 繪製梯形頂點
-            for point in self.four_points:
+            for point in self.__four_points:
                 img = cv2.circle(img, point, 5, RED, 2)
 
             cv2.imshow("set Projection Screen", img)
@@ -116,8 +159,8 @@ class LazerController:
             key = cv2.waitKey(10)
             # backspace
             if key == 8:
-                if self.four_points:
-                    self.four_points.pop()
+                if self.__four_points:
+                    self.__four_points.pop()
 
             elif key == 13:
                 break
@@ -125,10 +168,15 @@ class LazerController:
             elif key == 27:
                 return
 
-        self.four_points = self.sort_points(self.four_points)
+        self.__four_points = self._sort_points(self.__four_points)
         cv2.destroyAllWindows()
 
-    def fliter_point(self, cap):
+    def _fliter_point(self, cap):
+        """過濾雷射筆功能
+
+        Args:
+            cap (_type_): 攝影機
+        """
         has_pre_pos = False
         # 抓雷射筆
         while True:
@@ -149,7 +197,7 @@ class LazerController:
             mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
             # 投影幕範圍過濾
-            filter_area = np.array(self.four_points[:2] + self.four_points[:1:-1])
+            filter_area = np.array(self.__four_points[:2] + self.__four_points[:1:-1])
             # four_points_mask = np.zeros(img.shape, dtype="uint8")
             # cv2.fillPoly(four_points_mask, [filter_area], WHITE)
             # four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
@@ -171,7 +219,7 @@ class LazerController:
                 x, y, w, h = cv2.boundingRect(cnt)
                 cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
                 point = (x + w / 2, y + h / 2)
-                mouse_pos = self.point_convert(point, self.four_points)
+                mouse_pos = self._point_convert(point, self.__four_points)
                 # print(mouse_pos)
                 win32api.SetCursorPos(mouse_pos)
 
@@ -214,15 +262,27 @@ class LazerController:
                 break
 
     def start(self):
+        app = QtWidgets.QApplication(sys.argv)
+
+        button_ui = ButtonUI()
+        button_ui.click.enterEvent = partial(self._set_mode, mode=Mode.click)
+        button_ui.doubleClick.enterEvent = partial(
+            self._set_mode, mode=Mode.doubleClick
+        )
+        button_ui.drag.enterEvent = partial(self._set_mode, mode=Mode.drag)
+
         cap = cv2.VideoCapture(0)
         # cap = cv2.VideoCapture("./video/pos1.MOV")
 
-        self.get_Pscreen(cap)
-        self.fliter_point(cap)
+        self._get_Pscreen(cap)
+
+        button_ui.show()
+        self._fliter_point(cap)
 
         cap.release()
 
     def setting_window(self):
+        """設定視窗"""
         cv2.namedWindow("res")
 
         nothing = lambda _: _
@@ -266,17 +326,7 @@ class LazerController:
         cv2.destroyAllWindows()
 
 
-class ButtonUI(QtWidgets.QMainWindow, button_ui.Ui_Dialog):
-    def __init__(self):
-        super().__init__()
-        self.setupUi(self)
-
-
 if __name__ == "__main__":
-    app = QtWidgets.QApplication(sys.argv)
-    window = ButtonUI()
-    window.show()
-    # sys.exit(app.exec_())
 
     lc = LazerController()
     lc.start()
