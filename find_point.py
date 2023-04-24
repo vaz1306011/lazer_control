@@ -46,7 +46,7 @@ class LazerController:
 
     def __init__(self, zoom=1) -> None:
         self.is_running = True
-        keyboard.hook_key("esc", self.__exit)
+        keyboard.add_hotkey("esc", self.__exit)
         self.__zoom = zoom
         self.__four_points = []
         self.mode: Mode = Mode.click
