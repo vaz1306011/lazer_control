@@ -4,15 +4,17 @@
 import sys
 from enum import Enum
 from functools import partial
+from typing import Tuple
 
-# pyuic5 -x .\button.ui -o button.py
 import cv2
+import keyboard
 import numpy as np
 import win32api
 import win32con
 from PyQt5 import QtWidgets
 
-import buttonUI as button_ui
+# pyuic5 -x .\button.ui -o button.py
+import buttonUI
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -21,7 +23,7 @@ GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
 
-class ButtonUI(QtWidgets.QMainWindow, button_ui.Ui_Dialog):
+class ButtonUI(QtWidgets.QMainWindow, buttonUI.Ui_Dialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
@@ -48,18 +50,20 @@ class LazerController:
         self.__zoom = zoom
         self.__four_points = []
         self.mode: Mode = Mode.click
+        self.point = ()
+        self.pre_point = ()
 
-    def __mouse_click(self, event, x, y, flags, para):
     def __exit(self):
         self.is_running = False
 
+    def __mouse_click(self, event, x, y, flags, para) -> None:
         if len(self.__four_points) >= 4:
             return
 
         if event == cv2.EVENT_LBUTTONDOWN:
             self.__four_points.append([x, y])
 
-    def _sort_points(self, four_points: list[list[int, int]]):
+    def _sort_points(self, four_points: list[list[int, int]]) -> Tuple[int, int]:
         """排序四點(按照左上 右上 右下 左下)
 
         Args:
@@ -96,7 +100,7 @@ class LazerController:
         four_point: list[list[int, int]],
         width: int = 1920,
         height: int = 1080,
-    ) -> tuple[int, int]:
+    ) -> Tuple[int, int]:
         """座標正規畫
 
         Args:
@@ -138,11 +142,11 @@ class LazerController:
 
         return (int((width * u) / self.__zoom), int((height * v) / self.__zoom))
 
-    def _set_mode(self, event, mode: Mode):
+    def _set_mode(self, event, mode: Mode) -> None:
         self.mode = mode
         print("set mode", mode)
 
-    def _get_Pscreen(self, cap):
+    def _set_Pscreen(self, cap) -> None:
         """開啟投影幕範圍選擇視窗
 
         Args:
@@ -176,13 +180,41 @@ class LazerController:
         self.__four_points = self._sort_points(self.__four_points)
         cv2.destroyAllWindows()
 
-    def _fliter_point(self, cap):
+    def _event(self) -> None:
+        match Mode:
+            case Mode.click:
+                if not self.point and self.pre_point:
+                    win32api.mouse_event(
+                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
+                        0,
+                        0,
+                    )
+
+            case Mode.doubleClick:
+                if not self.point and self.pre_point:
+                    win32api.mouse_event(
+                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
+                        0,
+                        0,
+                    )
+                    win32api.mouse_event(
+                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
+                        0,
+                        0,
+                    )
+
+            case Mode.drag:
+                ...
+
+            case _:
+                raise ValueError("Mode not found")
+
+    def _fliter_point(self, cap) -> None:
         """過濾雷射筆功能
 
         Args:
             cap (_type_): 攝影機
         """
-        has_pre_pos = False
         # 抓雷射筆
         while self.is_running:
             # Read the frame
@@ -219,26 +251,22 @@ class LazerController:
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
 
+            self.pre_point = self.point
             if contours:
-                cnt = max(contours, key=lambda img: cv2.contourArea(img))
-                x, y, w, h = cv2.boundingRect(cnt)
+                # 找面積最大的contour
+                contour = max(contours, key=lambda img: cv2.contourArea(img))
+                x, y, w, h = cv2.boundingRect(contour)
                 cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
-                point = (x + w / 2, y + h / 2)
-                mouse_pos = self._point_convert(point, self.__four_points)
-                # print(mouse_pos)
-                win32api.SetCursorPos(mouse_pos)
+                self.point = (x + w / 2, y + h / 2)
 
-                has_pre_pos = True
+                converted_point = self._point_convert(self.point, self.__four_points)
+                # print(mouse_pos)
+                win32api.SetCursorPos(converted_point)
 
             else:
-                if has_pre_pos:
-                    win32api.mouse_event(
-                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
-                        0,
-                        0,
-                    )
+                self.point = ()
 
-                has_pre_pos = False
+            self._event()
 
             # mask_img = cv2.bitwise_and(img, img, mask=color_mask)
 
@@ -266,7 +294,7 @@ class LazerController:
             elif key == 27:
                 break
 
-    def start(self):
+    def start(self) -> None:
         app = QtWidgets.QApplication(sys.argv)
 
         button_ui = ButtonUI()
@@ -279,14 +307,14 @@ class LazerController:
         cap = cv2.VideoCapture(0)
         # cap = cv2.VideoCapture("./video/pos1.MOV")
 
-        self._get_Pscreen(cap)
+        self._set_Pscreen(cap)
 
         button_ui.show()
         self._fliter_point(cap)
 
         cap.release()
 
-    def setting_window(self):
+    def setting_window(self) -> None:
         """設定視窗"""
         cv2.namedWindow("res")
 
