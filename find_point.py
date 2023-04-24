@@ -43,11 +43,16 @@ class LazerController:
     green_lower = np.array([35, 37, 200])
 
     def __init__(self, zoom=1) -> None:
+        self.is_running = True
+        keyboard.hook_key("esc", self.__exit)
         self.__zoom = zoom
         self.__four_points = []
         self.mode: Mode = Mode.click
 
     def __mouse_click(self, event, x, y, flags, para):
+    def __exit(self):
+        self.is_running = False
+
         if len(self.__four_points) >= 4:
             return
 
@@ -147,7 +152,7 @@ class LazerController:
         cv2.setMouseCallback("set Projection Screen", self.__mouse_click)
 
         # 抓取頂點
-        while True:
+        while self.is_running:
             _, img = cap.read()
 
             # 繪製梯形頂點
@@ -166,7 +171,7 @@ class LazerController:
                 break
 
             elif key == 27:
-                return
+                self.__exit()
 
         self.__four_points = self._sort_points(self.__four_points)
         cv2.destroyAllWindows()
@@ -179,7 +184,7 @@ class LazerController:
         """
         has_pre_pos = False
         # 抓雷射筆
-        while True:
+        while self.is_running:
             # Read the frame
             ret, img = cap.read()
 
