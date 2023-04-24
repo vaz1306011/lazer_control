@@ -12,7 +12,7 @@ import win32api
 import win32con
 from PyQt5 import QtWidgets
 
-import button as button_ui
+import buttonUI as button_ui
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -327,7 +327,6 @@ class LazerController:
 
 
 if __name__ == "__main__":
-
     lc = LazerController()
     lc.start()
 
