@@ -55,7 +55,7 @@
     <string>double click</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="move">
+  <widget class="QPushButton" name="drag">
    <property name="geometry">
     <rect>
      <x>285</x>
@@ -73,7 +73,7 @@
     </font>
    </property>
    <property name="text">
-    <string>move</string>
+    <string>drag</string>
    </property>
   </widget>
  </widget>

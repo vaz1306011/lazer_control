@@ -58,7 +58,7 @@ class Ui_Dialog(object):
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
         self.click.setText(_translate("Dialog", "click"))
         self.doubleClick.setText(_translate("Dialog", "double click"))
-        self.drag.setText(_translate("Dialog", "move"))
+        self.drag.setText(_translate("Dialog", "drag"))
 
 
 if __name__ == "__main__":

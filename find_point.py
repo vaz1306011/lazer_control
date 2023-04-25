@@ -13,7 +13,7 @@ import win32api
 import win32con
 from PyQt5 import QtWidgets
 
-# pyuic5 -x .\button.ui -o button.py
+# pyuic5 -x .\buttonUI.ui -o buttonUI.py
 import buttonUI
 
 BLACK = [0, 0, 0]
@@ -49,9 +49,38 @@ class LazerController:
         keyboard.add_hotkey("esc", self.__exit)
         self.__zoom = zoom
         self.__four_points = []
+        self._is_mouse_press = False
         self.mode: Mode = Mode.click
         self.point = ()
         self.pre_point = ()
+
+    @property
+    def on_lazer_press(self) -> bool:
+        return self.point and not self.pre_point
+
+    @property
+    def on_lazer_release(self) -> bool:
+        return not self.point and self.pre_point
+
+    @property
+    def is_mouse_press(self) -> bool:
+        return self._is_mouse_press
+
+    @is_mouse_press.setter
+    def is_mouse_press(self, value: bool) -> None:
+        self._is_mouse_press = value
+        if value == False:
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
+        else:
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
+
+    @property
+    def is_mouse_release(self) -> bool:
+        return not self.is_mouse_press
+
+    @is_mouse_release.setter
+    def is_mouse_release(self, value: bool) -> None:
+        self.is_mouse_press = not value
 
     def __exit(self):
         self.is_running = False
@@ -181,9 +210,9 @@ class LazerController:
         cv2.destroyAllWindows()
 
     def _event(self) -> None:
-        match Mode:
+        match self.mode:
             case Mode.click:
-                if not self.point and self.pre_point:
+                if self.on_lazer_release:
                     win32api.mouse_event(
                         win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
                         0,
@@ -191,7 +220,7 @@ class LazerController:
                     )
 
             case Mode.doubleClick:
-                if not self.point and self.pre_point:
+                if self.on_lazer_release:
                     win32api.mouse_event(
                         win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
                         0,
@@ -204,7 +233,13 @@ class LazerController:
                     )
 
             case Mode.drag:
-                ...
+                if self.on_lazer_release:
+                    if not self.is_mouse_press:
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
+                        self.is_mouse_press = True
+                    else:
+                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
+                        self.is_mouse_press = False
 
             case _:
                 raise ValueError("Mode not found")
