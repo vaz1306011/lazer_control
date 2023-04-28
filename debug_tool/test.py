@@ -12,7 +12,6 @@ def draw_min_rect_circle(img, cnts):  # conts = contours
 
 
 if __name__ == "__main__":
-
     upper = np.array([255, 255, 255])
     lower = np.array([200, 200, 215])
 

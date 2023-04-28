@@ -39,13 +39,13 @@ class Mode(Enum):
 
 @dataclass
 class FourPoints:
-    TL: Tuple[int, int] = None
-    TR: Tuple[int, int] = None
+    UL: Tuple[int, int] = None
+    UR: Tuple[int, int] = None
     BL: Tuple[int, int] = None
     BR: Tuple[int, int] = None
 
     def __iter__(self):
-        return iter((self.TL, self.TR, self.BL, self.BR))
+        return iter((self.UL, self.UR, self.BL, self.BR))
 
     def __getitem__(self, index: int):
         return (self.UL, self.UR, self.BL, self.BR)[index]
@@ -337,23 +337,68 @@ class LazerController:
             cap (VideoCapture): 攝影機
         """
 
-        def binary_fliter(gray: Mat) -> Mat:
+        def binary_fliter(gray: np.ndarray) -> np.ndarray:
             _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
             return mask
 
-        def hsv_fliter(img: Mat, mask: Mat) -> Mat:
+        def hsv_fliter(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
             hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             color_mask = cv2.inRange(hsv, self.green_lower, self.green_upper)
             return cv2.bitwise_and(mask, color_mask)
 
+        def get_corners(gray: np.ndarray) -> FourPoints:
+            # 自適應二值化
+            thresh = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+            )
+
+            # 檢測邊緣
+            edges = cv2.Canny(thresh, 100, 200)
+
+            # 邊緣膨脹
+            kernel = np.ones((5, 5), np.uint8)
+            dilation = cv2.dilate(edges, kernel, iterations=1)
+
+            # 尋找輪廓
+            contours, _ = cv2.findContours(
+                dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            )
+
+            # 找到面積最大的輪廓
+            max_area = 0
+            max_contour = None
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > max_area:
+                    max_area = area
+                    max_contour = contour
+
+            # 找到輪廓的四個角
+            peri = cv2.arcLength(max_contour, True)
+            approx = cv2.approxPolyDP(max_contour, 0.02 * peri, True)
+
+            # 取得座標
+            approx = np.squeeze(approx)
+            corners = []
+            for point in approx:
+                corners.append(tuple(point))
+
+            print(corners)
+            fourpoints = FourPoints(*corners)
+            fourpoints.sort()
+
+            return fourpoints
+
         # 抓雷射筆
         while self._is_running:
             # Read the frame
-            ret, img = cap.read()
+            _, img = cap.read()
 
             # 灰階
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            mask = gray
+
+            # 高斯模糊
+            blur = cv2.GaussianBlur(gray, (13, 13), 0)
 
             # 二質化
             binary = binary_fliter(blur)
@@ -370,19 +415,12 @@ class LazerController:
             # 投影幕範圍過濾
             filter_area = np.array(
                 [
-                    self._four_points.TL,
-                    self._four_points.TR,
+                    self._four_points.UL,
+                    self._four_points.UR,
                     self._four_points.BR,
                     self._four_points.BL,
                 ]
             )
-            # four_points_mask = np.zeros(img.shape, dtype="uint8")
-            # cv2.fillPoly(four_points_mask, [filter_area], WHITE)
-            # four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
-            # mask = cv2.bitwise_and(mask, mask, mask=four_points_mask)
-
-            # 高斯模糊
-            mask = cv2.GaussianBlur(mask, (13, 13), 0)
 
             # 畫投影幕邊框
             cv2.polylines(img, [filter_area], True, GREEN)
@@ -397,7 +435,7 @@ class LazerController:
                 # 找面積最大的contour
                 contour = max(contours, key=cv2.contourArea)
                 x, y, w, h = cv2.boundingRect(contour)
-                cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
+                cv2.rectangle(img, (x, y), (x + w, y + h), RED, 2)
                 self._point = (x + w / 2, y + h / 2)
 
                 converted_point = self._point_convert(self._point, self._four_points)
@@ -448,7 +486,7 @@ class LazerController:
         # cap = cv2.VideoCapture(0)
         cap = cv2.VideoCapture("./video/test.mkv")
 
-        self._set_Pscreen(cap)
+        # self._set_Pscreen(cap)
 
         button_ui.show()
         self._fliter_point(cap)
