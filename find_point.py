@@ -2,6 +2,7 @@
 用顏色和亮度尋找雷射筆
 """
 import sys
+from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 from typing import Tuple
@@ -11,6 +12,7 @@ import keyboard
 import numpy as np
 import win32api
 import win32con
+from cv2 import Mat, VideoCapture
 from PyQt5 import QtWidgets
 
 # pyuic5 -x .\buttonUI.ui -o buttonUI.py
@@ -35,32 +37,149 @@ class Mode(Enum):
     drag = "drag"
 
 
+@dataclass
+class FourPoints:
+    TL: Tuple[int, int] = None
+    TR: Tuple[int, int] = None
+    BL: Tuple[int, int] = None
+    BR: Tuple[int, int] = None
+
+    def __iter__(self):
+        return iter((self.TL, self.TR, self.BL, self.BR))
+
+    def __getitem__(self, index: int):
+        return (self.UL, self.UR, self.BL, self.BR)[index]
+
+    def is_full(self) -> bool:
+        return all((x is not None for x in self))
+
+    def set(self, UL: int, UR: int, BL: int, BR: int) -> "FourPoints":
+        self.UL = UL
+        self.UR = UR
+        self.BL = BL
+        self.BR = BR
+        return self
+
+    def append(self, point: Tuple[int, int]) -> "FourPoints":
+        temp = list(self)
+        if None not in temp:
+            return
+
+        for i in range(4):
+            if temp[i] is None:
+                temp[i] = point
+                break
+
+        return self.set(*temp)
+
+    def pop(self) -> "FourPoints":
+        temp = list(self)
+        if not any((x is not None for x in temp)):
+            return None
+
+        for i in range(3, -1, -1):
+            if temp[i] is not None:
+                temp[i] = None
+                break
+
+        return self.set(*temp)
+
+    def sort(self) -> "FourPoints":
+        """排序四點(按照左上 右上 左下 右下)
+
+
+        Returns:
+            FourPoints: self
+        """
+        if None in self:
+            return self
+
+        y = sorted(self, key=lambda x: x[1])
+        U = set(y[:2])
+        B = set(y[2:])
+        x = sorted(self, key=lambda x: x[0])
+        L = set(x[:2])
+        R = set(x[2:])
+
+        try:
+            UL = (U & L).pop()
+            UR = (U & R).pop()
+            BL = (B & L).pop()
+            BR = (B & R).pop()
+        except KeyError:
+            return
+
+        return self.set(UL, UR, BL, BR)
+
+    def update(self, gray: Mat) -> "FourPoints":
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        # 自適應二質化
+        thresh = cv2.adaptiveThreshold(
+            blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+
+        thresh = cv2.bitwise_not(thresh)
+
+        # 侵蝕邊緣
+        kernel = np.ones((3, 3), np.uint8)
+        erosion = cv2.erode(thresh, kernel, iterations=1)
+
+        # 膨胀边缘
+        kernel = np.ones((9, 9), np.uint8)
+        dilation = cv2.dilate(erosion, kernel, iterations=1)
+
+        # 找輪廓
+        contours, _ = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours:
+            return self
+
+        # 找面積最大的輪廓
+        max_contour = max(contours, key=cv2.contourArea)
+
+        # 找輪廓的四個角
+        peri = cv2.arcLength(max_contour, True)
+        approx = cv2.approxPolyDP(max_contour, 0.01 * peri, True)
+
+        # 在原始图像上绘制轮廓和角点
+        approx = np.squeeze(approx)
+        corners = []
+        for point in approx:
+            corners.append(tuple(point))
+
+        if len(corners) != 4:
+            return self
+
+        return self.set(*corners).sort()
+
+
 class LazerController:
     # 紅色雷射筆
     red_upper = np.array([180, 255, 255])
     red_lower = np.array([130, 50, 200])
 
     # 綠色雷射筆
-    green_upper = np.array([85, 255, 255])
+    green_upper = np.array([85, 255, 225])
     green_lower = np.array([35, 37, 200])
 
-    def __init__(self, zoom=1) -> None:
-        self.is_running = True
-        keyboard.add_hotkey("esc", self.__exit)
-        self.__zoom = zoom
-        self.__four_points = []
+    def __init__(self, zoom: float = 1) -> None:
+        self._is_running = True
+        keyboard.add_hotkey("esc", self._exit)
+
+        self._zoom = zoom
+        self._four_points: FourPoints = FourPoints()
         self._is_mouse_press = False
-        self.mode: Mode = Mode.click
-        self.point = ()
-        self.pre_point = ()
+        self._mode: Mode = Mode.click
+        self._point = ()
+        self._pre_point = ()
 
     @property
     def on_lazer_press(self) -> bool:
-        return self.point and not self.pre_point
+        return self._point and not self._pre_point
 
     @property
     def on_lazer_release(self) -> bool:
-        return not self.point and self.pre_point
+        return not self._point and self._pre_point
 
     @property
     def is_mouse_press(self) -> bool:
@@ -82,70 +201,36 @@ class LazerController:
     def is_mouse_release(self, value: bool) -> None:
         self.is_mouse_press = not value
 
-    def __exit(self):
-        self.is_running = False
+    def _exit(self):
+        self._is_running = False
 
-    def __mouse_click(self, event, x, y, flags, para) -> None:
-        if len(self.__four_points) >= 4:
-            return
-
+    def _mouse_click_handler(self, event, x: int, y: int, flags, para) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
-            self.__four_points.append([x, y])
-
-    def _sort_points(self, four_points: list[list[int, int]]) -> Tuple[int, int]:
-        """排序四點(按照左上 右上 右下 左下)
-
-        Args:
-            four_points (list[list[int, int]]): 四點座標
-
-        Returns:
-            _type_: 排序後的點座標
-        """
-
-        points = four_points.copy()
-        temp = []
-
-        lt = min(points, key=lambda x: x[0] + x[1])
-        temp.append(lt)
-        points.remove(lt)
-
-        rt = max(points, key=lambda x: x[0] - x[1])
-        temp.append(rt)
-        points.remove(rt)
-
-        lb = min(points, key=lambda x: x[0] - x[1])
-        temp.append(lb)
-        points.remove(lb)
-
-        rb = points[0]
-        temp.append(rb)
-        points.remove(rb)
-
-        return tuple(temp)
+            self._four_points.append((x, y))
 
     def _point_convert(
         self,
-        point: tuple[int, int],
-        four_point: list[list[int, int]],
+        point: Tuple[int, int],
+        four_points: FourPoints,
         width: int = 1920,
         height: int = 1080,
     ) -> Tuple[int, int]:
         """座標正規畫
 
         Args:
-            point (tuple[int, int]): 相對於整個畫面的點座標
-            four_point (list[list[int, int]]): 四角點座標
+            point (Tuple[int, int]): 相對於整個畫面的點座標
+            four_point (FourPoints): 四角點座標
             width (int, optional): 轉換後寬度. Defaults to 1920.
             height (int, optional): 轉換後高度. Defaults to 1080.
 
         Returns:
-            tuple[int, int]: 正規畫後座標
+            Tuple[int, int]: 正規畫後座標
         """
         x, y = point[0], point[1]
-        x0, y0 = four_point[0]
-        x1, y1 = four_point[1]
-        x2, y2 = four_point[3]
-        x3, y3 = four_point[2]
+        x0, y0 = four_points[0]
+        x1, y1 = four_points[1]
+        x2, y2 = four_points[3]
+        x3, y3 = four_points[2]
 
         dx1 = x1 - x2
         dx2 = x3 - x2
@@ -169,27 +254,27 @@ class LazerController:
         u = max(0, min(u, 1))
         v = max(0, min(v, 1))
 
-        return (int((width * u) / self.__zoom), int((height * v) / self.__zoom))
+        return (int((width * u) / self._zoom), int((height * v) / self._zoom))
 
     def _set_mode(self, event, mode: Mode) -> None:
-        self.mode = mode
+        self._mode = mode
         print("set mode", mode)
 
-    def _set_Pscreen(self, cap) -> None:
+    def _set_Pscreen(self, cap: VideoCapture) -> None:
         """開啟投影幕範圍選擇視窗
 
         Args:
-            cap (_type_): 攝影機
+            cap (VideoCapture): 攝影機
         """
         cv2.namedWindow("set Projection Screen")
-        cv2.setMouseCallback("set Projection Screen", self.__mouse_click)
+        cv2.setMouseCallback("set Projection Screen", self._mouse_click_handler)
 
         # 抓取頂點
-        while self.is_running:
+        while self._is_running:
             _, img = cap.read()
 
             # 繪製梯形頂點
-            for point in self.__four_points:
+            for point in self._four_points:
                 img = cv2.circle(img, point, 5, RED, 2)
 
             cv2.imshow("set Projection Screen", img)
@@ -197,20 +282,21 @@ class LazerController:
             key = cv2.waitKey(10)
             # backspace
             if key == 8:
-                if self.__four_points:
-                    self.__four_points.pop()
+                self._four_points.pop()
 
+            # enter
             elif key == 13:
                 break
 
+            # esc
             elif key == 27:
-                self.__exit()
+                self._exit()
 
-        self.__four_points = self._sort_points(self.__four_points)
+        self._four_points.sort()
         cv2.destroyAllWindows()
 
     def _event(self) -> None:
-        match self.mode:
+        match self._mode:
             case Mode.click:
                 if self.on_lazer_release:
                     win32api.mouse_event(
@@ -244,14 +330,24 @@ class LazerController:
             case _:
                 raise ValueError("Mode not found")
 
-    def _fliter_point(self, cap) -> None:
+    def _fliter_point(self, cap: VideoCapture) -> None:
         """過濾雷射筆功能
 
         Args:
-            cap (_type_): 攝影機
+            cap (VideoCapture): 攝影機
         """
+
+        def binary_fliter(gray: Mat) -> Mat:
+            _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
+            return mask
+
+        def hsv_fliter(img: Mat, mask: Mat) -> Mat:
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            color_mask = cv2.inRange(hsv, self.green_lower, self.green_upper)
+            return cv2.bitwise_and(mask, color_mask)
+
         # 抓雷射筆
-        while self.is_running:
+        while self._is_running:
             # Read the frame
             ret, img = cap.read()
 
@@ -259,17 +355,27 @@ class LazerController:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             mask = gray
 
-            # 二質化過濾
-            _, binary_mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
-            mask = cv2.bitwise_and(mask, mask, mask=binary_mask)  # 跟binary_mask做AND
+            # 二質化
+            binary = binary_fliter(blur)
 
             # HSV過濾
-            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-            color_mask = cv2.inRange(hsv, self.green_lower, self.green_upper)
-            mask = cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
+            mask = hsv_fliter(img, binary)
+
+            # 抓取投影幕四個頂點
+            self._four_points.update(gray)
+
+            if not self._four_points.is_full():
+                continue
 
             # 投影幕範圍過濾
-            filter_area = np.array(self.__four_points[:2] + self.__four_points[:1:-1])
+            filter_area = np.array(
+                [
+                    self._four_points.TL,
+                    self._four_points.TR,
+                    self._four_points.BR,
+                    self._four_points.BL,
+                ]
+            )
             # four_points_mask = np.zeros(img.shape, dtype="uint8")
             # cv2.fillPoly(four_points_mask, [filter_area], WHITE)
             # four_points_mask = cv2.cvtColor(four_points_mask, cv2.COLOR_BGR2GRAY)
@@ -279,27 +385,27 @@ class LazerController:
             mask = cv2.GaussianBlur(mask, (13, 13), 0)
 
             # 畫投影幕邊框
-            cv2.polylines(img, [filter_area], True, RED)
+            cv2.polylines(img, [filter_area], True, GREEN)
 
             # 繪製雷射筆邊框
             contours, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
 
-            self.pre_point = self.point
+            self._pre_point = self._point
             if contours:
                 # 找面積最大的contour
-                contour = max(contours, key=lambda img: cv2.contourArea(img))
+                contour = max(contours, key=cv2.contourArea)
                 x, y, w, h = cv2.boundingRect(contour)
                 cv2.rectangle(img, (x, y), (x + w, y + h), GREEN, 2)
-                self.point = (x + w / 2, y + h / 2)
+                self._point = (x + w / 2, y + h / 2)
 
-                converted_point = self._point_convert(self.point, self.__four_points)
+                converted_point = self._point_convert(self._point, self._four_points)
                 # print(mouse_pos)
                 win32api.SetCursorPos(converted_point)
 
             else:
-                self.point = ()
+                self._point = ()
 
             self._event()
 
@@ -310,7 +416,7 @@ class LazerController:
                 ("img", img),
                 # ("four_points_mask", four_points_mask),
                 # ("binary", binary_mask),
-                # ("mask", mask),
+                ("mask", mask),
                 # ('canny', canny),
                 # ('color_mask', color_mask),
                 # ("mask_img", mask_img),
@@ -339,8 +445,8 @@ class LazerController:
         )
         button_ui.drag.enterEvent = partial(self._set_mode, mode=Mode.drag)
 
-        cap = cv2.VideoCapture(0)
-        # cap = cv2.VideoCapture("./video/pos1.MOV")
+        # cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture("./video/test.mkv")
 
         self._set_Pscreen(cap)
 
