@@ -1,8 +1,5 @@
-from typing import List
-
 import cv2
 import numpy as np
-from cv2 import Mat
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -12,8 +9,8 @@ BLUE = [255, 0, 0]
 
 
 def main():
-    cap = cv2.VideoCapture(0)
-    # cap = cv2.VideoCapture("./video/test.mp4")
+    # cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("./video/test.mkv")
 
     is_pause = False
     while True:
@@ -44,17 +41,14 @@ def main():
         # edges = cv2.Canny(erosion, 100, 200)
 
         # 膨胀边缘
-        kernel = np.ones((11, 11), np.uint8)
+        kernel = np.ones((9, 9), np.uint8)
         dilation = cv2.dilate(erosion, kernel, iterations=1)
 
         # 寻找轮廓
-        contours, hierarchy = cv2.findContours(
-            dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             # 找到面积最大的轮廓
             max_contour = max(contours, key=cv2.contourArea)
-            cv2.drawContours(img, [max_contour], -1, GREEN, 3)
 
             # 找到轮廓的四个角
             peri = cv2.arcLength(max_contour, True)
@@ -66,12 +60,12 @@ def main():
             approx = np.squeeze(approx)
             corners = []
             for point in approx:
-                # cv2.circle(img, point, 5, RED, 2)
                 corners.append(tuple(point))
 
-        print(corners)
+        # print(corners)
 
         # 显示图像
+        cv2.namedWindow("image", cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
         cv2.imshow("image", img)
         cv2.imshow("thresh", thresh)
         cv2.imshow("erosion", erosion)
