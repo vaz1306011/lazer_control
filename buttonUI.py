@@ -56,9 +56,9 @@ class Ui_Dialog(object):
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
         Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
-        self.click.setText(_translate("Dialog", "click"))
-        self.doubleClick.setText(_translate("Dialog", "double click"))
-        self.drag.setText(_translate("Dialog", "drag"))
+        self.click.setText(_translate("Dialog", "單擊"))
+        self.doubleClick.setText(_translate("Dialog", "雙擊"))
+        self.drag.setText(_translate("Dialog", "拖移"))
 
 
 if __name__ == "__main__":
