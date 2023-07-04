@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cv2
 import keyboard
@@ -21,6 +21,7 @@ import buttonUI
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
 RED = [0, 0, 255]
+YELLOW = [0, 255, 255]
 GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
@@ -49,6 +50,12 @@ class FourPoints:
 
     def __getitem__(self, index: int):
         return (self.UL, self.UR, self.BL, self.BR)[index]
+
+    def __len__(self) -> int:
+        return 4 - (self.UL, self.UR, self.BL, self.BR).count(None)
+
+    def __str__(self) -> str:
+        return f"UL: {self.UL}, UR: {self.UR}, BL: {self.BL}, BR: {self.BR}"
 
     def is_full(self) -> bool:
         return all((x is not None for x in self))
@@ -111,7 +118,8 @@ class FourPoints:
 
         return self.set(UL, UR, BL, BR)
 
-    def update(self, gray: Mat) -> "FourPoints":
+    def update(self, img: Mat) -> "FourPoints":
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # 自適應二質化
         thresh = cv2.adaptiveThreshold(
@@ -139,7 +147,7 @@ class FourPoints:
 
         # 找輪廓的四個角
         peri = cv2.arcLength(max_contour, True)
-        approx = cv2.approxPolyDP(max_contour, 0.01 * peri, True)
+        approx = cv2.approxPolyDP(max_contour, 0.015 * peri, True)
 
         # 在原始圖像上繪製輪廓和角點
         approx = np.squeeze(approx)
@@ -159,19 +167,24 @@ class LazerController:
     red_lower = np.array([130, 50, 200])
 
     # 綠色雷射筆
-    green_upper = np.array([85, 255, 225])
+    green_upper = np.array([85, 255, 255])
     green_lower = np.array([35, 37, 200])
 
     def __init__(self, zoom: float = 1) -> None:
         self._is_running = True
-        keyboard.add_hotkey("esc", self._exit)
 
-        self._zoom = zoom
+        self._zoom: float = zoom
         self._four_points: FourPoints = FourPoints()
-        self._is_mouse_press = False
+        self._is_mouse_press: bool = False
         self._mode: Mode = Mode.click
-        self._point = ()
-        self._pre_point = ()
+        self._point: Tuple[int, int] = ()
+        self._pre_point: Tuple[int, int] = ()
+        self._img: Optional[Mat] = None
+
+        keyboard.add_hotkey("esc", self._exit)
+        keyboard.add_hotkey(
+            "ctrl+f1", lambda: self._four_points.update(self._img.copy())
+        )
 
     @property
     def on_lazer_press(self) -> bool:
@@ -286,7 +299,8 @@ class LazerController:
 
             # enter
             elif key == 13:
-                break
+                if len(self._four_points) == 4:
+                    break
 
             # esc
             elif key == 27:
@@ -337,77 +351,25 @@ class LazerController:
             cap (VideoCapture): 攝影機
         """
 
-        def binary_fliter(gray: np.ndarray) -> np.ndarray:
+        def binary_fliter(gray: Mat) -> Mat:
             _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
-            return mask
+            # TODO bitwise_and測試
+            return cv2.bitwise_and(gray, gray, mask=mask)  # 跟binary_mask做AND
 
-        def hsv_fliter(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        def hsv_fliter(img: Mat, mask: Mat) -> Mat:
             hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             color_mask = cv2.inRange(hsv, self.green_lower, self.green_upper)
-            return cv2.bitwise_and(mask, color_mask)
-
-        def get_corners(gray: np.ndarray) -> FourPoints:
-            # 自適應二值化
-            thresh = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-            )
-
-            # 檢測邊緣
-            edges = cv2.Canny(thresh, 100, 200)
-
-            # 邊緣膨脹
-            kernel = np.ones((5, 5), np.uint8)
-            dilation = cv2.dilate(edges, kernel, iterations=1)
-
-            # 尋找輪廓
-            contours, _ = cv2.findContours(
-                dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
-
-            # 找到面積最大的輪廓
-            max_area = 0
-            max_contour = None
-            for contour in contours:
-                area = cv2.contourArea(contour)
-                if area > max_area:
-                    max_area = area
-                    max_contour = contour
-
-            # 找到輪廓的四個角
-            peri = cv2.arcLength(max_contour, True)
-            approx = cv2.approxPolyDP(max_contour, 0.02 * peri, True)
-
-            # 取得座標
-            approx = np.squeeze(approx)
-            corners = []
-            for point in approx:
-                corners.append(tuple(point))
-
-            print(corners)
-            fourpoints = FourPoints(*corners)
-            fourpoints.sort()
-
-            return fourpoints
+            return cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
         # 抓雷射筆
         while self._is_running:
-            # Read the frame
-            _, img = cap.read()
+            _, self._img = cap.read()
 
-            # 灰階
+            img = self._img.copy()
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-            # 高斯模糊
-            blur = cv2.GaussianBlur(gray, (13, 13), 0)
-
-            # 二質化
-            binary = binary_fliter(blur)
-
-            # HSV過濾
-            mask = hsv_fliter(img, binary)
-
-            # 抓取投影幕四個頂點
-            self._four_points.update(gray)
+            binary = binary_fliter(gray)
+            hsv = hsv_fliter(img, binary)
+            mask = cv2.GaussianBlur(hsv, (13, 13), 0)
 
             if not self._four_points.is_full():
                 continue
@@ -423,7 +385,7 @@ class LazerController:
             )
 
             # 畫投影幕邊框
-            cv2.polylines(img, [filter_area], True, GREEN)
+            cv2.polylines(img, [filter_area], True, YELLOW, 2)
 
             # 繪製雷射筆邊框
             contours, _ = cv2.findContours(
@@ -439,7 +401,6 @@ class LazerController:
                 self._point = (x + w / 2, y + h / 2)
 
                 converted_point = self._point_convert(self._point, self._four_points)
-                # print(mouse_pos)
                 win32api.SetCursorPos(converted_point)
 
             else:
@@ -452,9 +413,14 @@ class LazerController:
             # 顯示成果
             show_list = (
                 ("img", img),
+                # ("mask1", mask1),
+                # ("mask2", mask2),
+                # ("hsv", hsv),
+                # ("color_mask", color_mask),
+                # ("mask3", mask),
                 # ("four_points_mask", four_points_mask),
-                # ("binary", binary_mask),
-                ("mask", mask),
+                # ("binary", binary),
+                # ("mask", mask),
                 # ('canny', canny),
                 # ('color_mask', color_mask),
                 # ("mask_img", mask_img),
@@ -466,12 +432,10 @@ class LazerController:
                 cv2.namedWindow(name, cv2.WINDOW_NORMAL)
 
             key = cv2.waitKey(10)
-
-            if key == ord("p"):
-                cv2.waitKey(0)
-
-            elif key == 27:
+            if key == 27:
                 break
+            elif key == ord("p"):
+                cv2.waitKey(0)
 
     def start(self) -> None:
         app = QtWidgets.QApplication(sys.argv)
@@ -483,10 +447,10 @@ class LazerController:
         )
         button_ui.drag.enterEvent = partial(self._set_mode, mode=Mode.drag)
 
-        # cap = cv2.VideoCapture(0)
-        cap = cv2.VideoCapture("./video/test.mkv")
+        cap = cv2.VideoCapture(0)
+        # cap = cv2.VideoCapture("./video/test.mkv")
 
-        # self._set_Pscreen(cap)
+        self._set_Pscreen(cap)
 
         button_ui.show()
         self._fliter_point(cap)
@@ -512,9 +476,7 @@ class LazerController:
 
         while True:
             if not is_pause:
-                rval, img = cap.read()
-                if not rval:
-                    break
+                _, img = cap.read()
 
             h = cv2.getTrackbarPos("h", "res")
             s = cv2.getTrackbarPos("s", "res")
@@ -533,7 +495,7 @@ class LazerController:
 
 if __name__ == "__main__":
     lc = LazerController()
-    lc.setting_window()
+    lc.start()
 
     cv2.destroyAllWindows()
     print("done")
