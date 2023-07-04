@@ -124,7 +124,7 @@ class FourPoints:
         kernel = np.ones((3, 3), np.uint8)
         erosion = cv2.erode(thresh, kernel, iterations=1)
 
-        # 膨胀边缘
+        # 膨脹邊緣
         kernel = np.ones((9, 9), np.uint8)
         dilation = cv2.dilate(erosion, kernel, iterations=1)
 
@@ -141,7 +141,7 @@ class FourPoints:
         peri = cv2.arcLength(max_contour, True)
         approx = cv2.approxPolyDP(max_contour, 0.01 * peri, True)
 
-        # 在原始图像上绘制轮廓和角点
+        # 在原始圖像上繪製輪廓和角點
         approx = np.squeeze(approx)
         corners = []
         for point in approx:
@@ -498,15 +498,15 @@ class LazerController:
         cv2.namedWindow("res")
 
         nothing = lambda _: _
-        cv2.createTrackbar("r", "res", 0, 255, nothing)
-        cv2.createTrackbar("g", "res", 0, 255, nothing)
-        cv2.createTrackbar("b", "res", 0, 255, nothing)
+        cv2.createTrackbar("h", "res", 0, 255, nothing)
+        cv2.createTrackbar("s", "res", 0, 255, nothing)
+        cv2.createTrackbar("v", "res", 0, 255, nothing)
 
-        r = 0
-        g = 0
-        b = 0
+        h = 0
+        s = 0
+        v = 0
 
-        cap = cv2.VideoCapture("./video/pos2.MOV")
+        cap = cv2.VideoCapture("./video/test.mp4")
         # cap = cv2.VideoCapture(0)
         is_pause = False
 
@@ -516,8 +516,11 @@ class LazerController:
                 if not rval:
                     break
 
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (5, 5), 0)
+            h = cv2.getTrackbarPos("h", "res")
+            s = cv2.getTrackbarPos("s", "res")
+            v = cv2.getTrackbarPos("v", "res")
+
+            cv2.imshow("res", img)
 
             key = cv2.waitKey(10)
             if key == 27:
@@ -525,22 +528,12 @@ class LazerController:
             elif key == ord("p"):
                 is_pause = not is_pause
 
-            maxVal = cv2.getTrackbarPos("min", "res")
-            minVal = cv2.getTrackbarPos("max", "res")
-            if minVal < maxVal:
-                edge = cv2.Canny(blur, 100, 200)
-                cv2.imshow("res", edge)
-            else:
-                edge = cv2.Canny(blur, minVal, maxVal)
-                cv2.imshow("res", edge)
-
-        print(minVal, maxVal)
         cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
     lc = LazerController()
-    lc.start()
+    lc.setting_window()
 
     cv2.destroyAllWindows()
     print("done")
