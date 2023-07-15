@@ -4,7 +4,6 @@
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from functools import partial
 from typing import Optional, Tuple
 
 import cv2
@@ -13,10 +12,10 @@ import numpy as np
 import win32api
 import win32con
 from cv2 import Mat, VideoCapture
-from PyQt5 import QtWidgets
+from PyQt5 import QtCore, QtWidgets
 
 # pyuic5 -x .\buttonUI.ui -o buttonUI.py
-import buttonUI
+from buttonUI import Ui_Dialog
 
 BLACK = [0, 0, 0]
 WHITE = [255, 255, 255]
@@ -26,16 +25,31 @@ GREEN = [0, 255, 0]
 BLUE = [255, 0, 0]
 
 
-class ButtonUI(QtWidgets.QMainWindow, buttonUI.Ui_Dialog):
-    def __init__(self):
-        super().__init__()
-        self.setupUi(self)
-
-
 class Mode(Enum):
     click = "click"
     doubleClick = "doubleClick"
     drag = "drag"
+
+
+class ButtonUI(QtWidgets.QMainWindow):
+    mode_signal = QtCore.pyqtSignal(Mode)
+
+    def __init__(self):
+        super().__init__()
+
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)
+        screen_width = QtWidgets.QApplication.desktop().screenGeometry().width()
+        self.move((screen_width - self.width()) // 2, 0)
+        self.setFixedSize(self.width(), self.height())
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+
+        self.ui.click.enterEvent = lambda event: self.mode_signal.emit(Mode.click)
+        self.ui.doubleClick.enterEvent = lambda event: self.mode_signal.emit(
+            Mode.doubleClick
+        )
+        self.ui.drag.enterEvent = lambda event: self.mode_signal.emit(Mode.drag)
 
 
 @dataclass
@@ -186,6 +200,9 @@ class LazerController:
             "ctrl+f1", lambda: self._four_points.update(self._img.copy())
         )
 
+        self._button_ui = ButtonUI()
+        self._button_ui.mode_signal.connect(self._set_mode)
+
     @property
     def on_lazer_press(self) -> bool:
         return self._point and not self._pre_point
@@ -269,7 +286,7 @@ class LazerController:
 
         return (int((width * u) / self._zoom), int((height * v) / self._zoom))
 
-    def _set_mode(self, event, mode: Mode) -> None:
+    def _set_mode(self, mode: Mode) -> None:
         self._mode = mode
         print("set mode", mode)
 
@@ -438,21 +455,12 @@ class LazerController:
                 cv2.waitKey(0)
 
     def start(self) -> None:
-        app = QtWidgets.QApplication(sys.argv)
-
-        button_ui = ButtonUI()
-        button_ui.click.enterEvent = partial(self._set_mode, mode=Mode.click)
-        button_ui.doubleClick.enterEvent = partial(
-            self._set_mode, mode=Mode.doubleClick
-        )
-        button_ui.drag.enterEvent = partial(self._set_mode, mode=Mode.drag)
-
         cap = cv2.VideoCapture(0)
         # cap = cv2.VideoCapture("./video/test.mkv")
 
         self._set_Pscreen(cap)
 
-        button_ui.show()
+        self._button_ui.show()
         self._fliter_point(cap)
 
         cap.release()
@@ -494,8 +502,10 @@ class LazerController:
 
 
 if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
     lc = LazerController()
     lc.start()
-
+    # lc._button_ui.show()
     cv2.destroyAllWindows()
     print("done")
+    sys.exit(app.exec_())

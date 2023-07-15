@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>421</width>
-    <height>40</height>
+    <width>810</width>
+    <height>80</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,8 +18,8 @@
     <rect>
      <x>5</x>
      <y>5</y>
-     <width>131</width>
-     <height>31</height>
+     <width>260</width>
+     <height>70</height>
     </rect>
    </property>
    <property name="font">
@@ -31,16 +31,16 @@
     </font>
    </property>
    <property name="text">
-    <string>click</string>
+    <string>單擊</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="doubleclick">
+  <widget class="QPushButton" name="doubleClick">
    <property name="geometry">
     <rect>
-     <x>145</x>
+     <x>275</x>
      <y>5</y>
-     <width>131</width>
-     <height>31</height>
+     <width>260</width>
+     <height>70</height>
     </rect>
    </property>
    <property name="font">
@@ -52,16 +52,16 @@
     </font>
    </property>
    <property name="text">
-    <string>double click</string>
+    <string>雙擊</string>
    </property>
   </widget>
   <widget class="QPushButton" name="drag">
    <property name="geometry">
     <rect>
-     <x>285</x>
+     <x>545</x>
      <y>5</y>
-     <width>131</width>
-     <height>31</height>
+     <width>260</width>
+     <height>70</height>
     </rect>
    </property>
    <property name="font">
@@ -73,7 +73,7 @@
     </font>
    </property>
    <property name="text">
-    <string>drag</string>
+    <string>拖移</string>
    </property>
   </widget>
  </widget>

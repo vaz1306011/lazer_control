@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '.\button.ui'
+# Form implementation generated from reading ui file '.\buttonUI.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.9
 #
@@ -12,12 +12,9 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class Ui_Dialog(object):
-    def setupUi(self, Dialog: QtWidgets.QMainWindow):
+    def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.setGeometry(550, 0, 810, 80)
-        Dialog.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
-
-        # 單擊
+        Dialog.resize(810, 80)
         self.click = QtWidgets.QPushButton(Dialog)
         self.click.setGeometry(QtCore.QRect(5, 5, 260, 70))
         font = QtGui.QFont()
@@ -27,8 +24,6 @@ class Ui_Dialog(object):
         font.setWeight(75)
         self.click.setFont(font)
         self.click.setObjectName("click")
-
-        # 雙擊
         self.doubleClick = QtWidgets.QPushButton(Dialog)
         self.doubleClick.setGeometry(QtCore.QRect(275, 5, 260, 70))
         font = QtGui.QFont()
@@ -37,9 +32,7 @@ class Ui_Dialog(object):
         font.setBold(True)
         font.setWeight(75)
         self.doubleClick.setFont(font)
-        self.doubleClick.setObjectName("doubleclick")
-
-        # 拖移
+        self.doubleClick.setObjectName("doubleClick")
         self.drag = QtWidgets.QPushButton(Dialog)
         self.drag.setGeometry(QtCore.QRect(545, 5, 260, 70))
         font = QtGui.QFont()
@@ -63,7 +56,6 @@ class Ui_Dialog(object):
 
 if __name__ == "__main__":
     import sys
-
     app = QtWidgets.QApplication(sys.argv)
     Dialog = QtWidgets.QDialog()
     ui = Ui_Dialog()
