@@ -2,16 +2,17 @@
 用顏色和亮度尋找雷射筆
 """
 import sys
+import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Tuple
 
 import cv2
 import keyboard
 import numpy as np
 import win32api
 import win32con
-from cv2 import Mat, VideoCapture
+from cv2 import Mat
 from PyQt5 import QtCore, QtWidgets
 
 # pyuic5 -x .\buttonUI.ui -o buttonUI.py
@@ -37,13 +38,19 @@ class ButtonUI(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
+        desktop = QtWidgets.QDesktopWidget()
+        screen_rect = desktop.screenGeometry()
+
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)
-        screen_width = QtWidgets.QApplication.desktop().screenGeometry().width()
-        self.move((screen_width - self.width()) // 2, 0)
+
+        self.move((screen_rect.width() - self.width()) // 2, 0)
         self.setFixedSize(self.width(), self.height())
-        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
-        self.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+        self.setWindowFlags(
+            QtCore.Qt.WindowStaysOnTopHint
+            | QtCore.Qt.FramelessWindowHint
+            | QtCore.Qt.Tool
+        )
 
         self.ui.click.enterEvent = lambda event: self.mode_signal.emit(Mode.click)
         self.ui.doubleClick.enterEvent = lambda event: self.mode_signal.emit(
@@ -58,6 +65,13 @@ class FourPoints:
     UR: Tuple[int, int] = None
     BL: Tuple[int, int] = None
     BR: Tuple[int, int] = None
+
+    def __init__(self):
+        self._mask_window = QtWidgets.QMainWindow()
+        self._mask_window.setStyleSheet(
+            "QMainWindow { border: 10px solid red; background-color: white;}"
+        )
+        self._mask_window.setWindowOpacity(0.75)
 
     def __iter__(self):
         return iter((self.UL, self.UR, self.BL, self.BR))
@@ -132,7 +146,12 @@ class FourPoints:
 
         return self.set(UL, UR, BL, BR)
 
-    def update(self, img: Mat) -> "FourPoints":
+    def update(self, cap: Mat) -> "FourPoints":
+        self._mask_window.showFullScreen()
+        time.sleep(0.5)
+        _, img = cap.read()
+        self._mask_window.hide()
+
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # 自適應二質化
@@ -193,12 +212,11 @@ class LazerController:
         self._mode: Mode = Mode.click
         self._point: Tuple[int, int] = ()
         self._pre_point: Tuple[int, int] = ()
-        self._img: Optional[Mat] = None
+        self._cap = cv2.VideoCapture(0)
+        # self._cap = cv2.VideoCapture("./video/test.mkv")
 
         keyboard.add_hotkey("esc", self._exit)
-        keyboard.add_hotkey(
-            "ctrl+f1", lambda: self._four_points.update(self._img.copy())
-        )
+        keyboard.add_hotkey("ctrl+f1", lambda: self._four_points.update(self._cap))
 
         self._button_ui = ButtonUI()
         self._button_ui.mode_signal.connect(self._set_mode)
@@ -290,42 +308,6 @@ class LazerController:
         self._mode = mode
         print("set mode", mode)
 
-    def _set_Pscreen(self, cap: VideoCapture) -> None:
-        """開啟投影幕範圍選擇視窗
-
-        Args:
-            cap (VideoCapture): 攝影機
-        """
-        cv2.namedWindow("set Projection Screen")
-        cv2.setMouseCallback("set Projection Screen", self._mouse_click_handler)
-
-        # 抓取頂點
-        while self._is_running:
-            _, img = cap.read()
-
-            # 繪製梯形頂點
-            for point in self._four_points:
-                img = cv2.circle(img, point, 5, RED, 2)
-
-            cv2.imshow("set Projection Screen", img)
-
-            key = cv2.waitKey(10)
-            # backspace
-            if key == 8:
-                self._four_points.pop()
-
-            # enter
-            elif key == 13:
-                if len(self._four_points) == 4:
-                    break
-
-            # esc
-            elif key == 27:
-                self._exit()
-
-        self._four_points.sort()
-        cv2.destroyAllWindows()
-
     def _event(self) -> None:
         match self._mode:
             case Mode.click:
@@ -361,12 +343,8 @@ class LazerController:
             case _:
                 raise ValueError("Mode not found")
 
-    def _fliter_point(self, cap: VideoCapture) -> None:
-        """過濾雷射筆功能
-
-        Args:
-            cap (VideoCapture): 攝影機
-        """
+    def _fliter_point(self) -> None:
+        """過濾雷射筆功能"""
 
         def binary_fliter(gray: Mat) -> Mat:
             _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
@@ -380,9 +358,8 @@ class LazerController:
 
         # 抓雷射筆
         while self._is_running:
-            _, self._img = cap.read()
+            _, img = self._cap.read()
 
-            img = self._img.copy()
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             binary = binary_fliter(gray)
             hsv = hsv_fliter(img, binary)
@@ -454,25 +431,56 @@ class LazerController:
             elif key == ord("p"):
                 cv2.waitKey(0)
 
-    def start(self) -> None:
-        cap = cv2.VideoCapture(0)
-        # cap = cv2.VideoCapture("./video/test.mkv")
+    def set_Pscreen(self) -> None:
+        """開啟投影幕範圍選擇視窗"""
+        window_name = "set Projection Screen"
+        cv2.namedWindow(window_name)
+        cv2.setMouseCallback(window_name, self._mouse_click_handler)
 
-        self._set_Pscreen(cap)
+        # 抓取頂點
+        while self._is_running:
+            _, img = self._cap.read()
+
+            # 繪製梯形頂點
+            for point in self._four_points:
+                img = cv2.circle(img, point, 5, RED, 2)
+
+            cv2.imshow(window_name, img)
+
+            key = cv2.waitKey(10)
+            # backspace
+            if key == 8:
+                self._four_points.pop()
+
+            # enter
+            elif key == 13:
+                if len(self._four_points) == 4:
+                    break
+
+            # esc
+            elif key == 27:
+                self._exit()
+
+        self._four_points.sort()
+        cv2.destroyWindow(window_name)
+
+    def start(self) -> None:
+        self.set_Pscreen()
 
         self._button_ui.show()
-        self._fliter_point(cap)
+        self._fliter_point()
 
-        cap.release()
+        self._cap.release()
 
     def setting_window(self) -> None:
         """設定視窗"""
-        cv2.namedWindow("res")
+        window_name = "setting"
+        cv2.namedWindow(window_name)
 
         nothing = lambda _: _
-        cv2.createTrackbar("h", "res", 0, 255, nothing)
-        cv2.createTrackbar("s", "res", 0, 255, nothing)
-        cv2.createTrackbar("v", "res", 0, 255, nothing)
+        cv2.createTrackbar("h", window_name, 0, 255, nothing)
+        cv2.createTrackbar("s", window_name, 0, 255, nothing)
+        cv2.createTrackbar("v", window_name, 0, 255, nothing)
 
         h = 0
         s = 0
@@ -486,11 +494,11 @@ class LazerController:
             if not is_pause:
                 _, img = cap.read()
 
-            h = cv2.getTrackbarPos("h", "res")
-            s = cv2.getTrackbarPos("s", "res")
-            v = cv2.getTrackbarPos("v", "res")
+            h = cv2.getTrackbarPos("h", window_name)
+            s = cv2.getTrackbarPos("s", window_name)
+            v = cv2.getTrackbarPos("v", window_name)
 
-            cv2.imshow("res", img)
+            cv2.imshow(window_name, img)
 
             key = cv2.waitKey(10)
             if key == 27:
@@ -498,7 +506,7 @@ class LazerController:
             elif key == ord("p"):
                 is_pause = not is_pause
 
-        cv2.destroyAllWindows()
+        cv2.destroyWindow(window_name)
 
 
 if __name__ == "__main__":
