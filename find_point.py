@@ -5,6 +5,7 @@ import sys
 import time
 from dataclasses import dataclass
 from enum import Enum
+from threading import Timer
 from typing import Tuple
 
 import cv2
@@ -30,6 +31,8 @@ class Mode(Enum):
     click = "click"
     doubleClick = "doubleClick"
     drag = "drag"
+    drag_up = "drag_up"
+    drag_down = "drag_down"
 
 
 class ButtonUI(QtWidgets.QMainWindow):
@@ -194,6 +197,81 @@ class FourPoints:
         return self.set(*corners).sort()
 
 
+class Trigger(QtCore.QObject):
+    task_signal = QtCore.pyqtSignal(Mode)
+
+    def __init__(self) -> None:
+        self.point: Tuple[int, int] = ()
+        self.intervals = []
+        self.pre_time = 0
+        self._drag_down = False
+        self._timer = None
+
+    def press(self):
+        self._timer.cancel()
+        now = time.perf_counter()
+        interval = now - self.pre_time
+        if interval < 0.3:
+            self.intervals.append(interval)
+        else:
+            self.intervals.clear()
+        self.pre_time = now
+
+        # 拖移-壓
+        if len(self.intervals) > 3:
+
+            def drag_down():
+                self.task_signal.emit(Mode.drag_down)
+                self.intervals.clear()
+                self._drag_down = True
+
+            self._timer = Timer(0.3, drag_down)
+            self._timer.start()
+
+    def release(self, point: Tuple[int, int], /):
+        if not self.intervals:
+            self.point = point
+
+        self._timer.cancel()
+        now = time.perf_counter()
+        interval = now - self.pre_time
+        if interval < 0.3 and interval:
+            self.intervals.append(interval)
+        else:
+            self.intervals.clear()
+        self.pre_time = now
+
+        # 單擊
+        if len(self.intervals) == 2:
+
+            def click():
+                self.task_signal.emit(Mode.click)
+                self.intervals.clear()
+
+            self._timer = Timer(0.3, click)
+            self._timer.start()
+
+        # 雙擊
+        if len(self.intervals) == 4:
+
+            def double_click():
+                self.task_signal.emit(Mode.doubleClick)
+                self.intervals.clear()
+
+            self._timer = Timer(0.3, double_click)
+            self._timer.start()
+
+        # 拖移-放
+        if self._drag_down:
+
+            def drag_up():
+                self.task_signal.emit(Mode.drag_up)
+                self._drag_down = False
+
+            self._timer = Timer(0.3, drag_up)
+            self._timer.start()
+
+
 class LazerController:
     # 紅色雷射筆
     red_upper = np.array([180, 255, 255])
@@ -212,23 +290,28 @@ class LazerController:
         self._mode: Mode = Mode.click
         self._point: Tuple[int, int] = ()
         self._pre_point: Tuple[int, int] = ()
+        self._trigger = Trigger()
         self._cap = cv2.VideoCapture(0)
         # self._cap = cv2.VideoCapture("./video/test.mkv")
+        self._button_ui = ButtonUI()
+
+        self._trigger.task_signal.connect(self._task)
+        self._button_ui.mode_signal.connect(self._set_mode)
 
         keyboard.add_hotkey("esc", self._exit)
         keyboard.add_hotkey("ctrl+f1", lambda: self._four_points.update(self._cap))
 
-        self._button_ui = ButtonUI()
-        self._button_ui.mode_signal.connect(self._set_mode)
-
+    # 當雷射筆按下
     @property
     def on_lazer_press(self) -> bool:
-        return self._point and not self._pre_point
+        return (self._point) and (not self._pre_point)
 
+    # 當雷射筆放開
     @property
     def on_lazer_release(self) -> bool:
-        return not self._point and self._pre_point
+        return (not self._point) and (self._pre_point)
 
+    # 當滑鼠按下
     @property
     def is_mouse_press(self) -> bool:
         return self._is_mouse_press
@@ -241,6 +324,7 @@ class LazerController:
         else:
             win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
 
+    # 當滑鼠放開
     @property
     def is_mouse_release(self) -> bool:
         return not self.is_mouse_press
@@ -248,6 +332,15 @@ class LazerController:
     @is_mouse_release.setter
     def is_mouse_release(self, value: bool) -> None:
         self.is_mouse_press = not value
+
+    # 單擊滑鼠
+    def click_mouse(self, point) -> None:
+        win32api.SetCursorPos(point)
+        win32api.mouse_event(
+            win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
+            0,
+            0,
+        )
 
     def _exit(self):
         self._is_running = False
@@ -308,40 +401,50 @@ class LazerController:
         self._mode = mode
         print("set mode", mode)
 
-    def _event(self) -> None:
-        match self._mode:
+    def _task(self, mode: Mode) -> None:
+        match mode:
             case Mode.click:
-                if self.on_lazer_release:
-                    win32api.mouse_event(
-                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
-                        0,
-                        0,
-                    )
+                self.click_mouse(self._trigger.point)
 
             case Mode.doubleClick:
-                if self.on_lazer_release:
-                    win32api.mouse_event(
-                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
-                        0,
-                        0,
-                    )
-                    win32api.mouse_event(
-                        win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP,
-                        0,
-                        0,
-                    )
+                self.click_mouse(self._trigger.point)
+                self.click_mouse(self._trigger.point)
 
-            case Mode.drag:
-                if self.on_lazer_release:
-                    if not self.is_mouse_press:
-                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
-                        self.is_mouse_press = True
-                    else:
-                        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
-                        self.is_mouse_press = False
+            case Mode.drag_down:
+                win32api.SetCursorPos(self._trigger.point)
+                self.is_mouse_press = True
 
-            case _:
-                raise ValueError("Mode not found")
+            case Mode.drag_up:
+                self.is_mouse_release = True
+
+    def _event(self, point: Tuple[int, int]) -> None:
+        self._pre_point = self._point
+        self._point = point
+        if point:
+            win32api.SetCursorPos(point)
+
+        if self.on_lazer_press:
+            self._trigger.press()
+
+        if self.on_lazer_release:
+            self._trigger.release(point)
+
+        # match self._mode:
+        #     case Mode.click:
+        #         if self.on_lazer_release:
+        #             self.click_mouse()
+
+        #     case Mode.doubleClick:
+        #         if self.on_lazer_release:
+        #             self.click_mouse()
+        #             self.click_mouse()
+
+        #     case Mode.drag:
+        #         if self.on_lazer_release:
+        #             self.is_mouse_press = not self.is_mouse_press
+
+        #     case _:
+        # raise ValueError("Mode not found")
 
     def _fliter_point(self) -> None:
         """過濾雷射筆功能"""
@@ -386,21 +489,16 @@ class LazerController:
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
 
-            self._pre_point = self._point
             if contours:
                 # 找面積最大的contour
                 contour = max(contours, key=cv2.contourArea)
                 x, y, w, h = cv2.boundingRect(contour)
                 cv2.rectangle(img, (x, y), (x + w, y + h), RED, 2)
-                self._point = (x + w / 2, y + h / 2)
-
-                converted_point = self._point_convert(self._point, self._four_points)
-                win32api.SetCursorPos(converted_point)
-
+                point = (x + w / 2, y + h / 2)
+                converted_point = self._point_convert(point, self._four_points)
+                self._event(converted_point)
             else:
-                self._point = ()
-
-            self._event()
+                self._event(())
 
             # mask_img = cv2.bitwise_and(img, img, mask=color_mask)
 
@@ -467,7 +565,7 @@ class LazerController:
     def start(self) -> None:
         self.set_Pscreen()
 
-        self._button_ui.show()
+        # self._button_ui.show()
         self._fliter_point()
 
         self._cap.release()
