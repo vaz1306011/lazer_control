@@ -272,21 +272,41 @@ class Trigger(QtCore.QObject):
             self._timer.start()
 
 
+class Lazer:
+    def __init__(self, *, BN_lower, BN_upper, HSV_lower, HSV_upper):
+        self.BN_lower = BN_lower
+        self.BN_upper = BN_upper
+        self.HSV_lower = HSV_lower
+        self.HSV_upper = HSV_upper
+
+
 class LazerController:
     # 紅色雷射筆
-    red_upper = np.array([180, 255, 255])
-    red_lower = np.array([130, 50, 200])
+    # red_lower = np.array([130, 50, 200])
+    # red_upper = np.array([180, 255, 255])
+    lazer_red = Lazer(
+        BN_lower=230,
+        BN_upper=255,
+        HSV_lower=np.array([130, 50, 200]),
+        HSV_upper=np.array([180, 255, 255]),
+    )
 
     # 綠色雷射筆
-    green_upper = np.array([85, 255, 255])
-    green_lower = np.array([35, 37, 200])
+    # green_lower = np.array([35, 37, 200])
+    # green_upper = np.array([85, 255, 255])
+    lazer_green = Lazer(
+        BN_lower=230,
+        BN_upper=255,
+        HSV_lower=np.array([35, 37, 200]),
+        HSV_upper=np.array([85, 255, 255]),
+    )
 
     def __init__(self, zoom: float = 1) -> None:
         self._is_running = True
 
         self._zoom: float = zoom
         self._four_points: FourPoints = FourPoints()
-        self._is_mouse_press: bool = False
+        self.__is_mouse_press: bool = False
         self._mode: Mode = Mode.click
         self._point: Tuple[int, int] = ()
         self._pre_point: Tuple[int, int] = ()
@@ -314,11 +334,11 @@ class LazerController:
     # 當滑鼠按下
     @property
     def is_mouse_press(self) -> bool:
-        return self._is_mouse_press
+        return self.__is_mouse_press
 
     @is_mouse_press.setter
     def is_mouse_press(self, value: bool) -> None:
-        self._is_mouse_press = value
+        self.__is_mouse_press = value
         if value == False:
             win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
         else:
@@ -446,26 +466,25 @@ class LazerController:
         #     case _:
         # raise ValueError("Mode not found")
 
+    def _binary_fliter(self, gray: Mat, lazer: Lazer) -> Mat:
+        _, mask = cv2.threshold(gray, lazer.BN_lower, lazer.BN_upper, cv2.THRESH_BINARY)
+        return cv2.bitwise_and(gray, mask)  # 跟binary_mask做AND
+
+    def _hsv_fliter(self, img: Mat, mask: Mat, lazer: Lazer) -> Mat:
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        color_mask = cv2.inRange(hsv, lazer.HSV_lower, lazer.HSV_upper)
+        return cv2.bitwise_and(mask, color_mask)  # 跟color_mask做AND
+
     def _fliter_point(self) -> None:
         """過濾雷射筆功能"""
-
-        def binary_fliter(gray: Mat) -> Mat:
-            _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
-            # TODO bitwise_and測試
-            return cv2.bitwise_and(gray, gray, mask=mask)  # 跟binary_mask做AND
-
-        def hsv_fliter(img: Mat, mask: Mat) -> Mat:
-            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-            color_mask = cv2.inRange(hsv, self.green_lower, self.green_upper)
-            return cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
         # 抓雷射筆
         while self._is_running:
             _, img = self._cap.read()
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            binary = binary_fliter(gray)
-            hsv = hsv_fliter(img, binary)
+            binary = self._binary_fliter(gray, self.lazer_green)
+            hsv = self._hsv_fliter(img, binary, self.lazer_green)
             mask = cv2.GaussianBlur(hsv, (13, 13), 0)
 
             if not self._four_points.is_full():
@@ -584,18 +603,20 @@ class LazerController:
         s = 0
         v = 0
 
-        cap = cv2.VideoCapture("./video/test.mp4")
-        # cap = cv2.VideoCapture(0)
         is_pause = False
 
         while True:
             if not is_pause:
-                _, img = cap.read()
+                _, img = self._cap.read()
 
             h = cv2.getTrackbarPos("h", window_name)
             s = cv2.getTrackbarPos("s", window_name)
             v = cv2.getTrackbarPos("v", window_name)
 
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            binary = self._binary_fliter(gray, self.lazer_green)
+            hsv = self._hsv_fliter(img, binary, self.lazer_green)
+            mask = cv2.GaussianBlur(hsv, (13, 13), 0)
             cv2.imshow(window_name, img)
 
             key = cv2.waitKey(10)
@@ -610,8 +631,9 @@ class LazerController:
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     lc = LazerController()
-    lc.start()
+    # lc.start()
     # lc._button_ui.show()
+    lc.setting_window()
     cv2.destroyAllWindows()
     print("done")
     sys.exit(app.exec_())
