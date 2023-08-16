@@ -2,9 +2,11 @@
 用顏色和亮度尋找雷射筆
 """
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
+from test import Ui_Dialog as MskUI
 from typing import Tuple
 
 import cv2
@@ -57,6 +59,13 @@ class ButtonUI(QtWidgets.QMainWindow):
             Mode.doubleClick
         )
         self.ui.drag.enterEvent = lambda event: self.mode_signal.emit(Mode.drag)
+
+
+class MaskUI(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.ui = MskUI()
+        self.ui.setupUi(self)
 
 
 @dataclass
@@ -216,9 +225,11 @@ class LazerController:
         # self._cap = cv2.VideoCapture("./video/test.mkv")
 
         keyboard.add_hotkey("esc", self._exit)
-        keyboard.add_hotkey("ctrl+f1", lambda: self._four_points.update(self._cap))
+        # keyboard.add_hotkey("ctrl+f1", lambda: self._four_points.update(self._cap))
+        keyboard.add_hotkey("ctrl+f1", self._update_point)
 
         self._button_ui = ButtonUI()
+        self._mask_ui = MaskUI()
         self._button_ui.mode_signal.connect(self._set_mode)
 
     @property
@@ -342,6 +353,14 @@ class LazerController:
 
             case _:
                 raise ValueError("Mode not found")
+
+    def _update_point(self) -> None:
+        self._mask_ui.showFullScreen()
+        time.sleep(0.5)
+        self._mask_ui.hide()
+        print("t2")
+
+        # self._four_points.update(self._cap)
 
     def _fliter_point(self) -> None:
         """過濾雷射筆功能"""
@@ -514,6 +533,7 @@ if __name__ == "__main__":
     lc = LazerController()
     lc.start()
     # lc._button_ui.show()
+    # lc._mask_ui.show()
     cv2.destroyAllWindows()
     print("done")
     sys.exit(app.exec_())
