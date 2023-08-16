@@ -150,10 +150,10 @@ class FourPoints:
         return self.set(UL, UR, BL, BR)
 
     def update(self, cap: Mat) -> "FourPoints":
-        self._mask_window.showFullScreen()
-        time.sleep(0.5)
+        # self._mask_window.showFullScreen()
+        # time.sleep(0.5)
         _, img = cap.read()
-        self._mask_window.hide()
+        # self._mask_window.hide()
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -201,6 +201,8 @@ class Trigger(QtCore.QObject):
     task_signal = QtCore.pyqtSignal(Mode)
 
     def __init__(self) -> None:
+        super().__init__()
+
         self.point: Tuple[int, int] = ()
         self.intervals = []
         self.pre_time = 0
@@ -208,7 +210,8 @@ class Trigger(QtCore.QObject):
         self._timer = None
 
     def press(self):
-        self._timer.cancel()
+        if self._timer:
+            self._timer.cancel()
         now = time.perf_counter()
         interval = now - self.pre_time
         if interval < 0.3:
@@ -216,9 +219,10 @@ class Trigger(QtCore.QObject):
         else:
             self.intervals.clear()
         self.pre_time = now
+        print("案", self.point, self.intervals)
 
         # 拖移-壓
-        if len(self.intervals) > 3:
+        if len(self.intervals) == 3:
 
             def drag_down():
                 self.task_signal.emit(Mode.drag_down)
@@ -230,16 +234,20 @@ class Trigger(QtCore.QObject):
 
     def release(self, point: Tuple[int, int], /):
         if not self.intervals:
+            print(point)
             self.point = point
 
-        self._timer.cancel()
+        if self._timer:
+            self._timer.cancel()
         now = time.perf_counter()
         interval = now - self.pre_time
         if interval < 0.3 and interval:
             self.intervals.append(interval)
         else:
             self.intervals.clear()
+
         self.pre_time = now
+        print("放", self.point, self.intervals)
 
         # 單擊
         if len(self.intervals) == 2:
@@ -427,7 +435,7 @@ class LazerController:
             self._trigger.press()
 
         if self.on_lazer_release:
-            self._trigger.release(point)
+            self._trigger.release(self._pre_point)
 
         # match self._mode:
         #     case Mode.click:
@@ -531,6 +539,9 @@ class LazerController:
 
     def set_Pscreen(self) -> None:
         """開啟投影幕範圍選擇視窗"""
+        for _ in range(4):
+            self._four_points.append((0, 0))
+        return
         window_name = "set Projection Screen"
         cv2.namedWindow(window_name)
         cv2.setMouseCallback(window_name, self._mouse_click_handler)
