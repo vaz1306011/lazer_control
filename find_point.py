@@ -539,8 +539,10 @@ class LazerController:
 
     def set_Pscreen(self) -> None:
         """開啟投影幕範圍選擇視窗"""
-        for _ in range(4):
-            self._four_points.append((0, 0))
+        self._four_points.append((0, 0))
+        self._four_points.append((0, 1))
+        self._four_points.append((1, 0))
+        self._four_points.append((1, 1))
         return
         window_name = "set Projection Screen"
         cv2.namedWindow(window_name)

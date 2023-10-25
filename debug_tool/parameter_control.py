@@ -45,7 +45,7 @@ class Thread(QThread):
         return cv2.bitwise_and(mask, mask, mask=color_mask)  # 跟color_mask做AND
 
     def run(self):
-        cap = cv2.VideoCapture("./video/test2.mkv")
+        cap = cv2.VideoCapture(0)
         while True:
             rval, img = cap.read()
             if not rval:
