@@ -88,6 +88,10 @@ class FourPoints:
     def __str__(self) -> str:
         return f"UL: {self.UL}, UR: {self.UR}, BL: {self.BL}, BR: {self.BR}"
 
+    @property
+    def ndarray(self) -> np.ndarray:
+        return np.array([self.UL, self.UR, self.BL, self.BR])
+
     def is_full(self) -> bool:
         return all((x is not None for x in self))
 
@@ -480,14 +484,7 @@ class LazerController:
                 continue
 
             # 投影幕範圍過濾
-            filter_area = np.array(
-                [
-                    self._four_points.UL,
-                    self._four_points.UR,
-                    self._four_points.BR,
-                    self._four_points.BL,
-                ]
-            )
+            filter_area = self._four_points.ndarray
 
             # 畫投影幕邊框
             cv2.polylines(img, [filter_area], True, YELLOW, 2)
