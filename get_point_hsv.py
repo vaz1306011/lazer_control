@@ -1,14 +1,15 @@
 """
 背景減法器
 """
+import json
+from collections import Counter
 from dataclasses import dataclass
-from typing import Tuple
+from typing import List, Tuple
 
 import cv2
 import keyboard
 import numpy as np
 from cv2 import Mat
-from PyQt5 import QtWidgets
 
 YELLOW = [0, 255, 255]
 WHITE = [255, 255, 255]
@@ -43,7 +44,7 @@ class FourPoints:
 
     @property
     def ndarray(self) -> np.ndarray:
-        return np.array([self.UL, self.UR, self.BL, self.BR])
+        return np.array([self.UL, self.UR, self.BR, self.BL])
 
     def is_full(self) -> bool:
         return all((x is not None for x in self))
@@ -121,16 +122,13 @@ class FourPoints:
 
         thresh = cv2.bitwise_not(thresh)
 
-        # # 侵蝕邊緣
-        # kernel = np.ones((3, 3), np.uint8)
-        # erosion = cv2.erode(thresh, kernel, iterations=1)
+        # 侵蝕邊緣
+        kernel = np.ones((3, 3), np.uint8)
+        erosion = cv2.erode(thresh, kernel, iterations=1)
 
-        # # 膨脹邊緣
-        # kernel = np.ones((9, 9), np.uint8)
-        # dilation = cv2.dilate(erosion, kernel, iterations=1)
-
-        kernel = np.ones((5, 5), np.uint8)
-        dilation = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+        # 膨脹邊緣
+        kernel = np.ones((9, 9), np.uint8)
+        dilation = cv2.dilate(erosion, kernel, iterations=1)
 
         # 找輪廓
         contours, _ = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -152,17 +150,38 @@ class FourPoints:
             corners.append(tuple(point))
 
         if len(corners) != 4:
+            print("找輪廓失敗")
             return self
 
+        print("找輪廓成功")
         return self.set(*corners).sort()
 
 
-backSub = cv2.createBackgroundSubtractorKNN()
+def clear_color():
+    H_counter.clear()
+    S_counter.clear()
+    V_counter.clear()
+
+
+def stop_running():
+    global is_running
+    is_running = False
+
+
+keyboard.add_hotkey("ctrl+f2", clear_color)
+keyboard.add_hotkey("esc", stop_running)
+backSub = cv2.createBackgroundSubtractorKNN(history=90)
 # backSub = cv2.createBackgroundSubtractorMOG2()
-cap = cv2.VideoCapture("./video/test2.mkv")
+# cap = cv2.VideoCapture("./video/test2.mkv")
+cap = cv2.VideoCapture(0)
+is_running = True
+H_counter = Counter()
+S_counter = Counter()
+V_counter = Counter()
+total_pixel = 0
 fp = FourPoints()
 
-while True:
+while is_running:
     ret, frame = cap.read()
     if frame is None:
         break
@@ -170,18 +189,47 @@ while True:
     fgMask = backSub.apply(frame)
 
     # 投影幕範圍過濾
-    filter_area = fp.ndarray
-
     four_points_mask = np.zeros(fgMask.shape, dtype="uint8")
-    cv2.fillPoly(four_points_mask, [filter_area], WHITE)
-    mask = cv2.bitwise_and(mask, four_points_mask)
+    cv2.fillPoly(four_points_mask, [fp.ndarray], WHITE)
+    fgMask = cv2.bitwise_and(fgMask, four_points_mask)
+
+    # 侵蝕邊緣
+    kernel = np.ones((3, 3), np.uint8)
+    fgMask = cv2.erode(fgMask, kernel, iterations=1)
+
+    masked_pixels = cv2.bitwise_and(frame, frame, mask=fgMask)
+    hsv_frame = cv2.cvtColor(masked_pixels, cv2.COLOR_BGR2HSV)
+    # print(hsv_frame)
+
+    h, s, v = cv2.split(hsv_frame)
+    H_counter.update(Counter(h.flatten()))
+    S_counter.update(Counter(s.flatten()))
+    V_counter.update(Counter(v.flatten()))
+    # print(H_counter)
+    # print(hsv_frame[0][0])
+
+    # exit(0)
 
     # 畫投影幕邊框
-    cv2.polylines(frame, [filter_area], True, YELLOW, 2)
-
+    cv2.polylines(frame, [fp.ndarray], True, YELLOW, 2)
     cv2.imshow("Frame", frame)
     cv2.imshow("FG Mask", fgMask)
+    cv2.waitKey(10)
 
-    keyboard = cv2.waitKey(30)
-    if keyboard == "q" or keyboard == 27:
-        break
+
+def find_range(x: List[Tuple[int, int]]):
+    val = [t[0] for t in x[1:]]
+    return int(min(val)), int(max(val))
+
+
+min_h, max_h = find_range(H_counter.most_common(50))
+min_s, max_s = find_range(S_counter.most_common(100))
+min_v, max_v = find_range(V_counter.most_common(50))
+
+min_color = [min_h, min_s, min_v]
+max_color = [max_h, max_s, max_v]
+
+print(f"Min: {min_color}")
+print(f"Max: {max_color}")
+val = {"min_color": min_color, "max_color": max_color}
+json.dump(val, open("point_hsv.json", "w"))

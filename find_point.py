@@ -1,6 +1,7 @@
 """
 用顏色和亮度尋找雷射筆
 """
+import json
 import sys
 import time
 from dataclasses import dataclass
@@ -90,7 +91,7 @@ class FourPoints:
 
     @property
     def ndarray(self) -> np.ndarray:
-        return np.array([self.UL, self.UR, self.BL, self.BR])
+        return np.array([self.UL, self.UR, self.BR, self.BL])
 
     def is_full(self) -> bool:
         return all((x is not None for x in self))
@@ -284,14 +285,19 @@ class Trigger(QtCore.QObject):
             self._timer.start()
 
 
+lazer_color = json.load(open("point_hsv.json", "r"))
+
+
 class LazerController:
     # 紅色雷射筆
     red_upper = np.array([180, 255, 255])
     red_lower = np.array([130, 50, 200])
 
     # 綠色雷射筆
-    green_upper = np.array([85, 255, 255])
-    green_lower = np.array([35, 37, 200])
+    # green_upper = np.array([85, 255, 255])
+    # green_lower = np.array([35, 37, 200])
+    green_lower = np.array(lazer_color["min_color"])
+    green_upper = np.array(lazer_color["max_color"])
 
     def __init__(self, zoom: float = 1) -> None:
         self._is_running = True
@@ -624,4 +630,4 @@ if __name__ == "__main__":
     # lc._button_ui.show()
     cv2.destroyAllWindows()
     print("done")
-    sys.exit(app.exec_())
+    exit(0)
