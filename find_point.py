@@ -468,8 +468,7 @@ class LazerController:
         """過濾雷射筆功能"""
 
         def binary_fliter(gray: Mat) -> Mat:
-            _, mask = cv2.threshold(gray, 230, 255, cv2.THRESH_BINARY)
-            # TODO bitwise_and測試
+            _, mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
             return cv2.bitwise_and(gray, gray, mask=mask)  # 跟binary_mask做AND
 
         def hsv_fliter(img: Mat, mask: Mat) -> Mat:
